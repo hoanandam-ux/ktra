@@ -288,29 +288,36 @@ app.get('/api/auth/ip-check', async (req, res) => {
 });
 
 // ============================================================
-// ROUTES: QUIZ — Mode A (EN → VI meaning)
+// ROUTES: QUIZ — Mixed (5 EN→VI + 5 VI→EN, shuffled together)
 // ============================================================
 app.get('/api/quiz/questions', antiFraud, requireUser, (req, res) => {
   if (req.session.quizDone) return res.status(403).json({ error: 'Bạn đã hoàn thành bài kiểm tra rồi!' });
 
-  const mode = req.query.mode || 'en2vi'; // 'en2vi' or 'vi2en'
+  // Shuffle vocabulary, pick 10, split into two halves with different modes
   const shuffled = [...vocabulary].sort(() => Math.random() - 0.5).slice(0, 10);
 
-  req.session.currentQuiz  = shuffled.map(v => v.word);
-  req.session.quizMode     = mode;
-  req.session.quizStarted  = true;
-  req.session.startTime    = Date.now();
+  // First 5 → EN→VI, last 5 → VI→EN, then shuffle combined
+  const mixed = shuffled.map((v, i) => ({
+    word: v.word,
+    mode: i < 5 ? 'en2vi' : 'vi2en',
+  })).sort(() => Math.random() - 0.5);
 
-  const questions = shuffled.map((v, i) => ({
-    id: i,
-    mode,
-    // en2vi: show word + phonetic, user types meaning
-    // vi2en: show meaning, user types the English word
-    prompt:   mode === 'en2vi' ? v.word        : v.meaning,
-    hint:     mode === 'en2vi' ? v.phonetic    : null,
-  }));
+  req.session.currentQuiz = mixed.map(q => q.word);
+  req.session.quizModes   = mixed.map(q => q.mode); // store per-question modes
+  req.session.quizStarted = true;
+  req.session.startTime   = Date.now();
 
-  res.json({ questions, mode });
+  const questions = mixed.map((item, i) => {
+    const v = vocabulary.find(x => x.word === item.word);
+    return {
+      id:     i,
+      mode:   item.mode,
+      prompt: item.mode === 'en2vi' ? v.word    : v.meaning,
+      hint:   item.mode === 'en2vi' ? v.phonetic : null,
+    };
+  });
+
+  res.json({ questions });
 });
 
 // ============================================================
@@ -326,7 +333,7 @@ app.post('/api/quiz/submit', antiFraud, requireUser, (req, res) => {
   const ip        = getRealIP(req);
   const fingerprint = req.session.userFingerprint;
   const timeTaken = Math.round((Date.now() - req.session.startTime) / 1000);
-  const mode      = req.session.quizMode || 'en2vi';
+  const quizModes = req.session.quizModes || []; // per-question modes
 
   // Time limit enforcement
   const TIME_LIMIT = 120;
@@ -347,6 +354,7 @@ app.post('/api/quiz/submit', antiFraud, requireUser, (req, res) => {
     let correct = false;
 
     if (vocab) {
+      const mode = quizModes[i] || 'en2vi';
       if (mode === 'en2vi') {
         // User typed Vietnamese meaning
         const acceptable = [
@@ -367,15 +375,16 @@ app.post('/api/quiz/submit', antiFraud, requireUser, (req, res) => {
     }
 
     if (correct) score++;
+    const qMode = quizModes[i] || 'en2vi';
     graded.push({
       word:          vocab?.word,
       phonetic:      vocab?.phonetic,
       meaning:       vocab?.meaning,
-      prompt:        mode === 'en2vi' ? vocab?.word    : vocab?.meaning,
-      correctAnswer: mode === 'en2vi' ? vocab?.meaning : vocab?.word,
+      prompt:        qMode === 'en2vi' ? vocab?.word    : vocab?.meaning,
+      correctAnswer: qMode === 'en2vi' ? vocab?.meaning : vocab?.word,
       userAnswer:    answers[i] || '',
       correct,
-      mode,
+      mode:          qMode,
     });
   }
 
@@ -408,7 +417,6 @@ app.post('/api/quiz/submit', antiFraud, requireUser, (req, res) => {
     percent:  Math.round((score / 10) * 100),
     timeTaken,
     graded,
-    mode,
     message: score >= 7 ? '🎉 Xuất sắc!' : score >= 5 ? '👍 Khá tốt!' : '📚 Cần ôn thêm!',
   });
 });
