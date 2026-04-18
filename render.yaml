@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: vocab-quiz
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ADMIN_PASSWORD
+        value: htr911
+      - key: USER_PASSWORD
+        value: leconghoan
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: COOKIE_SECRET
+        generateValue: true
