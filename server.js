@@ -26,16 +26,26 @@ const dirtyIPCache    = new NodeCache({ stdTTL: 3600 }); // cache kết quả ch
 // VOCABULARY DATA
 // ============================================================
 const vocabulary = [
-  { word: 'a',              phonetic: '/ə/',           meaning: 'một',                   alt: ['1','mot','một'] },
-  { word: 'ability',        phonetic: '/əˈbɪlɪti/',    meaning: 'khả năng',              alt: ['kha nang','khả năng','năng lực','nang luc'] },
-  { word: 'able',           phonetic: '/ˈeɪbl/',       meaning: 'có khả năng',           alt: ['co kha nang','có khả năng','có thể','co the'] },
-  { word: 'about',          phonetic: '/əˈbaʊt/',      meaning: 'khoảng',                alt: ['khoang','khoảng','về','ve','xung quanh'] },
-  { word: 'above',          phonetic: '/əˈbʌv/',       meaning: 'trên, phía trên',       alt: ['tren','trên','phía trên','pha tren','phia tren'] },
-  { word: 'accept',         phonetic: '/əkˈsept/',     meaning: 'chấp nhận',             alt: ['chap nhan','chấp nhận','đồng ý','dong y'] },
-  { word: 'according (to)', phonetic: '/əˈkɔːrdɪŋ/',  meaning: 'theo',                  alt: ['theo','dua theo','dựa theo'] },
-  { word: 'account',        phonetic: '/əˈkaʊnt/',     meaning: 'tài khoản',             alt: ['tai khoan','tài khoản'] },
-  { word: 'across',         phonetic: '/əˈkrɒs/',      meaning: 'đi qua',                alt: ['di qua','đi qua','ngang qua','ngang','qua'] },
-  { word: 'act',            phonetic: '/ækt/',          meaning: 'hành động, đóng vai',   alt: ['hanh dong','hành động','dong vai','đóng vai','hành xử','hanh xu'] },
+  { word: 'a',              phonetic: '/ə/',            meaning: 'một',                   alt: ['1','mot','một'] },
+  { word: 'ability',        phonetic: '/əˈbɪlɪti/',    meaning: 'khả năng',              alt: ['kha nang','năng lực','nang luc'] },
+  { word: 'able',           phonetic: '/ˈeɪbl/',        meaning: 'có khả năng',           alt: ['co kha nang','có thể','co the'] },
+  { word: 'about',          phonetic: '/əˈbaʊt/',       meaning: 'khoảng',                alt: ['khoang','về','ve','xung quanh'] },
+  { word: 'above',          phonetic: '/əˈbʌv/',        meaning: 'trên, phía trên',       alt: ['tren','phía trên','pha tren'] },
+  { word: 'accept',         phonetic: '/əkˈsept/',      meaning: 'chấp nhận',             alt: ['chap nhan','đồng ý','dong y'] },
+  { word: 'according (to)', phonetic: '/əˈkɔːrdɪŋ/',   meaning: 'theo',                  alt: ['dua theo','dựa theo'] },
+  { word: 'account',        phonetic: '/əˈkaʊnt/',      meaning: 'tài khoản',             alt: ['tai khoan'] },
+  { word: 'across',         phonetic: '/əˈkrɒs/',       meaning: 'đi qua',                alt: ['di qua','ngang qua','ngang','qua'] },
+  { word: 'act',            phonetic: '/ækt/',           meaning: 'hành động, đóng vai',   alt: ['hanh dong','hành động','dong vai','đóng vai'] },
+  { word: 'action',         phonetic: '/ˈækʃn/',        meaning: 'hành động',             alt: ['hanh dong','hành động','hoạt động','hoat dong'] },
+  { word: 'activity',       phonetic: '/ækˈtɪvɪti/',   meaning: 'hoạt động',             alt: ['hoat dong','hoạt động','sinh hoạt'] },
+  { word: 'add',            phonetic: '/æd/',            meaning: 'thêm vào',              alt: ['them vao','thêm','them','cộng','cong'] },
+  { word: 'address',        phonetic: '/əˈdres/',       meaning: 'địa chỉ',               alt: ['dia chi','địa chỉ','đia chi'] },
+  { word: 'adult',          phonetic: '/ˈædʌlt/',       meaning: 'người lớn',             alt: ['nguoi lon','người lớn','trưởng thành'] },
+  { word: 'after',          phonetic: '/ˈɑːftər/',      meaning: 'sau, sau khi',          alt: ['sau','sau khi','sau do','sau đó'] },
+  { word: 'again',          phonetic: '/əˈɡen/',        meaning: 'lại, một lần nữa',      alt: ['lai','lại','mot lan nua','một lần nữa'] },
+  { word: 'against',        phonetic: '/əˈɡenst/',      meaning: 'chống lại',             alt: ['chong lai','chống lại','đối lập','doi lap'] },
+  { word: 'age',            phonetic: '/eɪdʒ/',         meaning: 'tuổi, thời đại',        alt: ['tuoi','tuổi','thoi dai','thời đại'] },
+  { word: 'ago',            phonetic: '/əˈɡəʊ/',        meaning: 'trước đây',             alt: ['truoc day','trước đây','truoc','trước'] },
 ];
 
 // ============================================================
@@ -293,13 +303,11 @@ app.get('/api/auth/ip-check', async (req, res) => {
 app.get('/api/quiz/questions', antiFraud, requireUser, (req, res) => {
   if (req.session.quizDone) return res.status(403).json({ error: 'Bạn đã hoàn thành bài kiểm tra rồi!' });
 
-  // Shuffle vocabulary, pick 10, split into two halves with different modes
-  const shuffled = [...vocabulary].sort(() => Math.random() - 0.5).slice(0, 10);
-
-  // First 5 → EN→VI, last 5 → VI→EN, then shuffle combined
+  // Use all 20 words: 10 en2vi + 10 vi2en, shuffled together
+  const shuffled = [...vocabulary].sort(() => Math.random() - 0.5);
   const mixed = shuffled.map((v, i) => ({
     word: v.word,
-    mode: i < 5 ? 'en2vi' : 'vi2en',
+    mode: i < 10 ? 'en2vi' : 'vi2en',
   })).sort(() => Math.random() - 0.5);
 
   req.session.currentQuiz = mixed.map(q => q.word);
@@ -399,10 +407,9 @@ app.post('/api/quiz/submit', antiFraud, requireUser, (req, res) => {
     name:        name || 'Ẩn danh',
     ip,
     score,
-    total:       10,
-    percent:     Math.round((score / 10) * 100),
+    total:       20,
+    percent:     Math.round((score / 20) * 100),
     timeTaken,
-    mode,
     submittedAt: new Date().toISOString(),
     graded,
   });
@@ -413,11 +420,11 @@ app.post('/api/quiz/submit', antiFraud, requireUser, (req, res) => {
   res.json({
     success: true,
     score,
-    total:    10,
-    percent:  Math.round((score / 10) * 100),
+    total:    20,
+    percent:  Math.round((score / 20) * 100),
     timeTaken,
     graded,
-    message: score >= 7 ? '🎉 Xuất sắc!' : score >= 5 ? '👍 Khá tốt!' : '📚 Cần ôn thêm!',
+    message: score >= 14 ? '🎉 Xuất sắc!' : score >= 10 ? '👍 Khá tốt!' : '📚 Cần ôn thêm!',
   });
 });
 
