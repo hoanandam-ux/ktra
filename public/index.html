@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TomDayy — Kiểm Tra Từ Vựng</title>
+<title>LexIQ — Kiểm Tra Từ Vựng</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -236,6 +236,29 @@ input::placeholder{color:var(--text-3);font-weight:300;}
 @keyframes fadeSlideUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
 @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
 @keyframes bounce{0%,60%,100%{transform:scale(0.7);opacity:0.5;}30%{transform:scale(1);opacity:1;}}
+
+/* MODE SELECTOR */
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:4px;}
+.mode-tile{background:var(--glass);border:1px solid var(--rim);border-radius:var(--r-md);padding:20px 16px;cursor:pointer;transition:all 0.22s var(--ease-out);text-align:center;}
+.mode-tile:hover{border-color:var(--rim-hi);transform:translateY(-2px);}
+.mode-tile.active{border-color:var(--gold);background:rgba(212,168,83,0.07);box-shadow:0 0 0 1px var(--gold),0 4px 20px rgba(212,168,83,0.12);}
+.mode-icon{font-size:1.6rem;margin-bottom:8px;}
+.mode-title{font-family:var(--serif);font-size:1.05rem;font-weight:700;margin-bottom:6px;color:var(--text);}
+.mode-desc{font-family:var(--mono);font-size:10px;color:var(--text-3);letter-spacing:0.5px;line-height:1.5;}
+
+/* DIRTY IP OVERLAY */
+.dirty-overlay{display:none;position:fixed;inset:0;background:rgba(8,8,14,0.98);backdrop-filter:blur(24px);z-index:500;flex-direction:column;align-items:center;justify-content:center;padding:32px;animation:fadeIn 0.3s ease;}
+.dirty-overlay.show{display:flex;}
+.dirty-card{max-width:420px;text-align:center;}
+.dirty-icon{font-size:4rem;margin-bottom:20px;animation:shakeBig 0.6s ease both;}
+.dirty-title{font-family:var(--serif);font-size:3rem;font-weight:900;color:var(--ruby);margin-bottom:12px;}
+.dirty-sub{font-family:var(--sans);font-size:15px;color:var(--text-2);margin-bottom:12px;line-height:1.7;}
+.dirty-ip{font-family:var(--mono);font-size:13px;color:var(--ruby);background:rgba(224,85,85,0.08);border:1px solid rgba(224,85,85,0.25);border-radius:var(--r-sm);padding:8px 16px;margin-bottom:20px;display:inline-block;}
+.dirty-hint{font-family:var(--mono);font-size:11px;color:var(--text-3);letter-spacing:0.5px;line-height:1.7;}
+
+/* VI2EN question style */
+.q-meaning-prompt{font-family:var(--serif);font-size:clamp(1.8rem,5vw,2.8rem);font-weight:700;color:var(--gold-lt);line-height:1.2;margin-bottom:10px;}
+.q-mode-badge{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:3px;color:var(--cyan);background:rgba(64,200,224,0.1);border:1px solid rgba(64,200,224,0.2);border-radius:100px;padding:3px 10px;margin-bottom:14px;text-transform:uppercase;}
 </style>
 </head>
 <body>
@@ -255,7 +278,7 @@ input::placeholder{color:var(--text-3);font-weight:300;}
       <span class="eyebrow-text">Secure · Verified · Monitored</span>
       <div class="eyebrow-line right"></div>
     </div>
-    <div class="wordmark-title">TomDay<span>y</span></div>
+    <div class="wordmark-title">Lex<span>IQ</span></div>
     <div class="wordmark-tagline">Hệ thống kiểm tra từ vựng tiếng Anh bảo mật</div>
   </div>
   <div class="glass-card" style="max-width:440px;">
@@ -338,7 +361,21 @@ input::placeholder{color:var(--text-3);font-weight:300;}
       <li><div class="rule-dot gold">⏱</div><span>Giới hạn <strong>2 phút</strong> — hệ thống tự động nộp bài khi hết giờ</span></li>
       <li><div class="rule-dot red">!</div><span>Mỗi IP chỉ được làm <strong>1 lần duy nhất</strong> — kết quả được lưu lại</span></li>
     </ul>
-    <button class="btn btn-primary" onclick="startQuiz()">Bắt đầu làm bài →</button>
+    <!-- MODE SELECTOR -->
+    <div class="sec-lbl" style="margin-top:8px;"><span class="sec-lbl-txt">Chọn chế độ luyện tập</span><div class="sec-lbl-line"></div></div>
+    <div class="mode-grid" id="mode-grid">
+      <div class="mode-tile active" id="mode-en2vi" onclick="selectMode('en2vi')">
+        <div class="mode-icon">🇬🇧 → 🇻🇳</div>
+        <div class="mode-title">Anh → Việt</div>
+        <div class="mode-desc">Nhìn từ tiếng Anh, gõ nghĩa tiếng Việt</div>
+      </div>
+      <div class="mode-tile" id="mode-vi2en" onclick="selectMode('vi2en')">
+        <div class="mode-icon">🇻🇳 → 🇬🇧</div>
+        <div class="mode-title">Việt → Anh</div>
+        <div class="mode-desc">Nhìn nghĩa tiếng Việt, gõ từ tiếng Anh</div>
+      </div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:16px;" onclick="startQuiz()">Bắt đầu làm bài →</button>
   </div>
 </div>
 
@@ -434,6 +471,16 @@ input::placeholder{color:var(--text-3);font-weight:300;}
   <div class="footer-nav"><a onclick="doLogout()">Đăng xuất</a></div>
 </div>
 
+<!-- DIRTY IP OVERLAY -->
+<div class="dirty-overlay" id="dirty-overlay">
+  <div class="dirty-card">
+    <div class="dirty-icon">🚫</div>
+    <div class="dirty-title">IP Bẩn</div>
+    <div class="dirty-sub" id="dirty-reason">Địa chỉ IP của bạn bị phát hiện là VPN, proxy hoặc datacenter.</div>
+    <div class="dirty-ip" id="dirty-ip-display"></div>
+    <div class="dirty-hint">Vui lòng sử dụng mạng thật (WiFi gia đình, 4G cá nhân) để truy cập.</div>
+  </div>
+</div>
 </div><!-- .app -->
 
 <div class="detail-overlay" id="detail-overlay">
@@ -454,7 +501,15 @@ input::placeholder{color:var(--text-3);font-weight:300;}
 
 <script>
 let questions=[],answers=[],currentQ=0,timerInterval=null,timerSeconds=0,userName='',allResults=[];
+let quizMode = 'en2vi'; // 'en2vi' or 'vi2en'
 const TIME_LIMIT=120;
+
+// ── MODE SELECTOR ──────────────────────────────────────
+function selectMode(mode) {
+  quizMode = mode;
+  document.querySelectorAll('.mode-tile').forEach(t => t.classList.remove('active'));
+  document.getElementById('mode-' + mode).classList.add('active');
+}
 
 function showView(id){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));const el=document.getElementById(id);if(el)el.classList.add('active');}
 function showAdminLogin(){showView('view-admin-login');}
@@ -471,7 +526,7 @@ async function doAdminLogin(){const pw=document.getElementById('admin-password')
 
 async function doLogout(){await api('/api/auth/logout','POST',{});showView('view-login');}
 
-async function startQuiz(){try{const data=await api('/api/quiz/questions','GET');questions=data.questions;answers=new Array(10).fill('');currentQ=0;showView('view-quiz');renderDots();renderQuestion();startTimer();}catch(e){showToast(e.error||'Lỗi khi tải câu hỏi!','error');}}
+async function startQuiz(){try{const data=await api('/api/quiz/questions?mode='+quizMode,'GET');questions=data.questions;answers=new Array(10).fill('');currentQ=0;showView('view-quiz');renderDots();renderQuestion();startTimer();}catch(e){showToast(e.error||'Lỗi khi tải câu hỏi!','error');}}
 
 function startTimer(){clearInterval(timerInterval);timerSeconds=0;timerInterval=setInterval(()=>{timerSeconds++;const remaining=TIME_LIMIT-timerSeconds;const m=String(Math.floor(Math.max(0,remaining)/60)).padStart(2,'0');const s=String(Math.max(0,remaining)%60).padStart(2,'0');const display=document.getElementById('timer-display');const timerEl=document.getElementById('quiz-timer');const bar=document.getElementById('time-bar-fill');if(remaining<=0){clearInterval(timerInterval);if(display)display.textContent='00:00';autoSubmitOnTimeout();return;}if(display)display.textContent=`${m}:${s}`;const pct=(remaining/TIME_LIMIT)*100;if(bar){bar.style.width=pct+'%';bar.className='time-bar-fill'+(pct<=25?' danger-zone':pct<=50?' warn-zone':'');}if(timerEl){timerEl.className='timer-pill'+(remaining<=10?' urgent':remaining<=30?' warn':'');}if(remaining===30)showToast('⚠ Còn 30 giây!','warn');if(remaining===10)showToast('🔴 Còn 10 giây!','error');},1000);}
 
@@ -490,7 +545,16 @@ function confirmSubmit(){const inp=document.getElementById('answer-input');if(in
 
 async function submitQuiz(){clearInterval(timerInterval);try{const data=await api('/api/quiz/submit','POST',{answers,name:userName});showResult(data);}catch(e){showToast(e.error||'Lỗi khi nộp bài!','error');}}
 
-function showResult(data){const pct=data.percent;const isHi=data.score>=7;const isMid=data.score>=5;document.getElementById('result-badge-text').textContent=isHi?'🎉 Xuất sắc':isMid?'👍 Khá tốt':'📚 Cần ôn thêm';const scoreNum=document.getElementById('score-num');scoreNum.textContent=data.score;scoreNum.className='score-big '+(isHi?'s-hi':isMid?'s-mid':'s-lo');document.getElementById('score-msg').textContent=data.message;document.getElementById('score-time').textContent=`⏱ Hoàn thành trong ${data.timeTaken} giây`;const ring=document.getElementById('score-ring-fill');const circ=2*Math.PI*68;ring.style.stroke=isHi?'var(--emerald)':isMid?'var(--amber)':'var(--ruby)';ring.style.strokeDashoffset=circ-(pct/100)*circ;const rows=data.graded.map(g=>`<tr><td class="col-word">${g.word}</td><td class="col-ans">${escapeHtml(g.userAnswer)||'<span style="color:var(--text-3)">—</span>'}</td><td>${g.correct?'<span class="badge-ok">✓ Đúng</span>':'<span class="badge-fail">✗ Sai</span>'}</td><td style="font-family:var(--mono);font-size:12px;color:var(--text-3);">${g.correct?'':escapeHtml(g.correctMeaning)}</td></tr>`).join('');document.getElementById('result-detail').innerHTML=`<table class="result-tbl"><thead><tr><th>Từ</th><th>Đáp án của bạn</th><th>Kết quả</th><th>Đúng là</th></tr></thead><tbody>${rows}</tbody></table>`;showView('view-result');}
+function showResult(data){const pct=data.percent;const isHi=data.score>=7;const isMid=data.score>=5;document.getElementById('result-badge-text').textContent=isHi?'🎉 Xuất sắc':isMid?'👍 Khá tốt':'📚 Cần ôn thêm';const scoreNum=document.getElementById('score-num');scoreNum.textContent=data.score;scoreNum.className='score-big '+(isHi?'s-hi':isMid?'s-mid':'s-lo');document.getElementById('score-msg').textContent=data.message;document.getElementById('score-time').textContent=`⏱ Hoàn thành trong ${data.timeTaken} giây`;const ring=document.getElementById('score-ring-fill');const circ=2*Math.PI*68;ring.style.stroke=isHi?'var(--emerald)':isMid?'var(--amber)':'var(--ruby)';ring.style.strokeDashoffset=circ-(pct/100)*circ;const isVI2EN = data.mode === 'vi2en';
+  const rows=data.graded.map(g=>`<tr>
+    <td class="col-word">${isVI2EN ? escapeHtml(g.meaning||g.prompt) : g.word}</td>
+    <td class="col-ans">${escapeHtml(g.userAnswer)||'<span style="color:var(--text-3)">—</span>'}</td>
+    <td>${g.correct?'<span class="badge-ok">✓ Đúng</span>':'<span class="badge-fail">✗ Sai</span>'}</td>
+    <td style="font-family:var(--mono);font-size:12px;color:var(--text-3);">${g.correct?'':escapeHtml(g.correctAnswer||g.correctMeaning||'')}</td>
+  </tr>`).join('');
+  const col1Header = isVI2EN ? 'Nghĩa Việt' : 'Từ Anh';
+  const col4Header = isVI2EN ? 'Từ đúng' : 'Nghĩa đúng';
+  document.getElementById('result-detail').innerHTML=`<table class="result-tbl"><thead><tr><th>${col1Header}</th><th>Đáp án của bạn</th><th>Kết quả</th><th>${col4Header}</th></tr></thead><tbody>${rows}</tbody></table>`;showView('view-result');}
 
 async function loadAdminData(){try{const[statsData,resultsData]=await Promise.all([api('/api/admin/stats','GET'),api('/api/admin/results','GET')]);document.getElementById('stat-total').textContent=statsData.total;document.getElementById('stat-avg').textContent=statsData.avgScore;document.getElementById('stat-pass').textContent=statsData.passed;document.getElementById('stat-fail').textContent=statsData.failed;document.getElementById('stat-ips').textContent=statsData.usedIPs;allResults=resultsData.results;renderResults(allResults);}catch(e){showToast('Lỗi tải dữ liệu!','error');}}
 
@@ -508,7 +572,28 @@ async function resetIP(ip){if(!confirm(`Reset IP: ${ip}?`))return;try{await api(
 
 function escapeHtml(str){if(!str)return'';return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
-(async()=>{try{const status=await api('/api/auth/status','GET');if(status.adminAuthed){showView('view-admin');loadAdminData();}else if(status.userAuthed){if(status.quizDone)showToast('Bạn đã hoàn thành bài kiểm tra rồi.','warn');else showView('view-ready');}}catch(e){}})();
+(async()=>{
+  // Check dirty IP first
+  try {
+    const ipCheck = await api('/api/auth/ip-check','GET');
+    if(ipCheck.dirty){
+      document.getElementById('dirty-reason').textContent = ipCheck.reason || 'IP của bạn bị phát hiện là VPN, proxy hoặc datacenter.';
+      document.getElementById('dirty-ip-display').textContent = '⚠ IP: ' + (ipCheck.ip||'unknown');
+      document.getElementById('dirty-overlay').classList.add('show');
+      return; // stop everything
+    }
+  } catch(e){ /* fail open */ }
+
+  // Auth session check
+  try{
+    const status=await api('/api/auth/status','GET');
+    if(status.adminAuthed){showView('view-admin');loadAdminData();}
+    else if(status.userAuthed){
+      if(status.quizDone)showToast('Bạn đã hoàn thành bài kiểm tra rồi.','warn');
+      else showView('view-ready');
+    }
+  }catch(e){}
+})();
 
 document.getElementById('input-password').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 document.getElementById('admin-password').addEventListener('keydown',e=>{if(e.key==='Enter')doAdminLogin();});
