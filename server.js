@@ -1,418 +1,517 @@
-require('dotenv').config();
-const express = require('express');
-const helmet = require('helmet');
-const cors = require('cors');
-const cookieParser = require('cookie-parser');
-const session = require('express-session');
-const rateLimit = require('express-rate-limit');
-const NodeCache = require('node-cache');
-const { v4: uuidv4 } = require('uuid');
-const path = require('path');
-const crypto = require('crypto');
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// ============================================================
-// IN-MEMORY STORAGE (dùng cho demo / Render free tier)
-// Thay bằng Redis/MongoDB cho production thực sự
-// ============================================================
-const usedIPs = new NodeCache({ stdTTL: 0 }); // IP đã dùng – vĩnh viễn
-const sessions = new NodeCache({ stdTTL: 3600 }); // session hợp lệ
-const results = new NodeCache({ stdTTL: 0 }); // kết quả quiz
-const fingerprintCache = new NodeCache({ stdTTL: 0 }); // browser fingerprint
-
-// ============================================================
-// VOCABULARY DATA
-// ============================================================
-const vocabulary = [
-  { word: 'a', phonetic: '/ə/', meaning: 'một', alt: ['1', 'mot', 'một'] },
-  { word: 'ability', phonetic: '/əˈbɪlɪti/', meaning: 'khả năng', alt: ['kha nang', 'khả năng', 'năng lực', 'nang luc'] },
-  { word: 'able', phonetic: '/ˈeɪbl/', meaning: 'có khả năng', alt: ['co kha nang', 'có khả năng', 'có thể', 'co the'] },
-  { word: 'about', phonetic: '/əˈbaʊt/', meaning: 'khoảng', alt: ['khoang', 'khoảng', 'về', 've', 'xung quanh'] },
-  { word: 'above', phonetic: '/əˈbʌv/', meaning: 'trên, phía trên', alt: ['tren', 'trên', 'phía trên', 'pha tren', 'phia tren'] },
-  { word: 'accept', phonetic: '/əkˈsept/', meaning: 'chấp nhận', alt: ['chap nhan', 'chấp nhận', 'đồng ý', 'dong y'] },
-  { word: 'according (to)', phonetic: '/əˈkɔːrdɪŋ/', meaning: 'theo', alt: ['theo', 'dua theo', 'dựa theo'] },
-  { word: 'account', phonetic: '/əˈkaʊnt/', meaning: 'tài khoản', alt: ['tai khoan', 'tài khoản', 'tài khoản ngân hàng'] },
-  { word: 'across', phonetic: '/əˈkrɒs/', meaning: 'đi qua', alt: ['di qua', 'đi qua', 'ngang qua', 'ngang', 'qua'] },
-  { word: 'act', phonetic: '/ækt/', meaning: 'hành động, đóng vai', alt: ['hanh dong', 'hành động', 'dong vai', 'đóng vai', 'hành xử', 'hanh xu'] },
-];
-
-// ============================================================
-// PASSWORDS
-// ============================================================
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'htr911';
-const USER_PASSWORD = process.env.USER_PASSWORD || 'leconghoan';
-
-// ============================================================
-// SECURITY MIDDLEWARE
-// ============================================================
-app.set('trust proxy', 1); // trust Render's proxy
-
-app.use(helmet({
-  contentSecurityPolicy: false, // we manage CSP manually
-}));
-
-app.use(cors({ origin: false }));
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: false, limit: '10kb' }));
-app.use(cookieParser(process.env.COOKIE_SECRET || 'vocab-quiz-secret-2024'));
-
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'session-secret-vocab-2024',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    maxAge: 2 * 60 * 60 * 1000, // 2 hours
-    sameSite: 'strict',
-  },
-  name: 'vqsid',
-}));
-
-// Global rate limiter
-const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests' },
-});
-app.use(globalLimiter);
-
-// Auth rate limiter (stricter)
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  message: { error: 'Too many login attempts' },
-});
-
-// ============================================================
-// IP EXTRACTION HELPER
-// ============================================================
-function getRealIP(req) {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (forwarded) {
-    const ips = forwarded.split(',').map(ip => ip.trim());
-    return ips[0];
-  }
-  return req.ip || req.connection.remoteAddress || 'unknown';
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TomDayy — Kiểm Tra Từ Vựng</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink:#08080e;--deep:#0c0c16;--void:#10101e;
+  --glass:rgba(255,255,255,0.028);--glass-md:rgba(255,255,255,0.055);--glass-hi:rgba(255,255,255,0.09);
+  --rim:rgba(255,255,255,0.08);--rim-hi:rgba(255,255,255,0.16);
+  --gold:#d4a853;--gold-lt:#f0c97a;--gold-glow:rgba(212,168,83,0.18);
+  --cyan:#40c8e0;--cyan-glow:rgba(64,200,224,0.15);
+  --emerald:#2dd4a0;--ruby:#e05555;--amber:#e09420;
+  --text:#eeeef5;--text-2:#b0b0c4;--text-3:#6a6a88;
+  --serif:'Playfair Display',Georgia,serif;
+  --mono:'DM Mono','Courier New',monospace;
+  --sans:'DM Sans',system-ui,sans-serif;
+  --r-sm:8px;--r-md:14px;--r-lg:20px;
+  --ease-spring:cubic-bezier(0.34,1.56,0.64,1);
+  --ease-out:cubic-bezier(0.16,1,0.3,1);
 }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--ink);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
 
-// ============================================================
-// FINGERPRINT HELPER
-// ============================================================
-function generateFingerprint(req) {
-  const parts = [
-    req.headers['user-agent'] || '',
-    req.headers['accept-language'] || '',
-    req.headers['accept-encoding'] || '',
-    req.headers['accept'] || '',
-  ];
-  return crypto.createHash('sha256').update(parts.join('|')).digest('hex');
-}
+/* AMBIENT */
+.ambient{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;}
+.orb{position:absolute;border-radius:50%;filter:blur(100px);animation:drift linear infinite;opacity:0;animation-fill-mode:forwards;}
+.orb-1{width:600px;height:600px;background:radial-gradient(circle,rgba(212,168,83,0.13),transparent 70%);top:-200px;left:-100px;animation-duration:28s;}
+.orb-2{width:500px;height:500px;background:radial-gradient(circle,rgba(64,200,224,0.10),transparent 70%);bottom:-150px;right:-100px;animation-duration:22s;animation-delay:-8s;}
+.orb-3{width:400px;height:400px;background:radial-gradient(circle,rgba(45,212,160,0.07),transparent 70%);top:40%;left:60%;animation-duration:32s;animation-delay:-15s;}
+@keyframes drift{0%{transform:translate(0,0) scale(1);opacity:0;}10%{opacity:1;}50%{transform:translate(30px,-40px) scale(1.06);}100%{transform:translate(0,0) scale(1);opacity:1;}}
+.grain{position:fixed;inset:-50%;width:200%;height:200%;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");opacity:0.022;animation:grainShift 0.5s steps(2) infinite;pointer-events:none;z-index:1;}
+@keyframes grainShift{0%{transform:translate(0,0);}25%{transform:translate(-2px,2px);}50%{transform:translate(2px,-2px);}75%{transform:translate(-1px,-1px);}100%{transform:translate(1px,1px);}}
+.mesh{position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,0.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.018) 1px,transparent 1px);background-size:60px 60px;pointer-events:none;z-index:0;}
 
-// ============================================================
-// ANTI-FRAUD MIDDLEWARE
-// ============================================================
-function antiFraud(req, res, next) {
-  const ip = getRealIP(req);
-  const fingerprint = generateFingerprint(req);
+/* APP */
+.app{position:relative;z-index:2;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:0 16px 60px;}
+.view{display:none;width:100%;max-width:680px;flex-direction:column;align-items:center;}
+.view.active{display:flex;}
 
-  // Block Tor / common proxy headers
-  const proxyHeaders = ['x-proxy-id', 'via', 'forwarded', 'x-real-ip', 'cf-connecting-ip'];
-  // Allow Cloudflare (used by Render) but block obvious proxies
-  if (req.headers['via'] && !req.headers['cf-ray']) {
-    return res.status(403).json({ error: 'Proxy/VPN không được phép sử dụng.' });
-  }
+/* WORDMARK */
+.wordmark{text-align:center;padding:60px 0 40px;animation:heroReveal 1s var(--ease-out) both;}
+.wordmark-eyebrow{display:inline-flex;align-items:center;gap:10px;margin-bottom:18px;}
+.eyebrow-line{width:32px;height:1px;background:linear-gradient(90deg,transparent,var(--gold));}
+.eyebrow-line.right{background:linear-gradient(90deg,var(--gold),transparent);}
+.eyebrow-text{font-family:var(--mono);font-size:10px;letter-spacing:5px;color:var(--gold);text-transform:uppercase;}
+.wordmark-title{font-family:var(--serif);font-size:clamp(3rem,9vw,5.5rem);font-weight:900;letter-spacing:-1px;line-height:0.9;color:var(--text);}
+.wordmark-title span{background:linear-gradient(135deg,var(--gold-lt) 0%,var(--gold) 40%,var(--cyan) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.wordmark-tagline{font-family:var(--sans);font-size:14px;font-weight:300;color:var(--text-3);margin-top:16px;letter-spacing:0.5px;}
+@keyframes heroReveal{from{opacity:0;transform:translateY(28px);}to{opacity:1;transform:translateY(0);}}
 
-  // Block headless browsers
-  const ua = req.headers['user-agent'] || '';
-  const headlessSigns = ['HeadlessChrome', 'PhantomJS', 'Selenium', 'WebDriver', 'puppeteer', 'playwright'];
-  if (headlessSigns.some(sign => ua.includes(sign))) {
-    return res.status(403).json({ error: 'Trình duyệt tự động không được phép.' });
-  }
+/* GLASS CARD */
+.glass-card{width:100%;background:var(--glass);backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);border:1px solid var(--rim);border-radius:var(--r-lg);padding:36px;position:relative;overflow:hidden;animation:cardReveal 0.7s var(--ease-out) both;}
+.glass-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent 0%,var(--gold) 30%,var(--cyan) 70%,transparent 100%);opacity:0.6;}
+.glass-card::after{content:'';position:absolute;bottom:0;right:0;width:80px;height:80px;background:radial-gradient(circle at bottom right,var(--gold-glow),transparent 70%);border-radius:0 0 var(--r-lg) 0;}
+.cc-tl,.cc-br{position:absolute;width:14px;height:14px;}
+.cc-tl{top:12px;left:12px;border-top:1px solid var(--gold);border-left:1px solid var(--gold);}
+.cc-br{bottom:12px;right:12px;border-bottom:1px solid var(--gold);border-right:1px solid var(--gold);}
+@keyframes cardReveal{from{opacity:0;transform:translateY(20px) scale(0.98);}to{opacity:1;transform:translateY(0) scale(1);}}
 
-  req.realIP = ip;
-  req.fingerprint = fingerprint;
-  next();
-}
+/* SECTION LABEL */
+.sec-lbl{display:flex;align-items:center;gap:12px;margin-bottom:24px;}
+.sec-lbl-txt{font-family:var(--mono);font-size:10px;letter-spacing:4px;text-transform:uppercase;color:var(--gold);white-space:nowrap;}
+.sec-lbl-line{flex:1;height:1px;background:linear-gradient(90deg,rgba(212,168,83,0.3),transparent);}
 
-// ============================================================
-// AUTH MIDDLEWARE
-// ============================================================
-function requireUser(req, res, next) {
-  if (req.session && req.session.userAuthed) return next();
-  res.status(401).json({ error: 'Unauthorized' });
-}
+/* FORM */
+.field{display:flex;flex-direction:column;gap:8px;margin-bottom:20px;}
+.field-lbl{font-family:var(--mono);font-size:10px;letter-spacing:3px;color:var(--text-3);text-transform:uppercase;}
+.input-wrap{position:relative;}
+.input-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:15px;pointer-events:none;transition:color 0.2s;}
+.input-wrap:focus-within .input-icon{color:var(--gold);}
+input[type=text],input[type=password]{width:100%;background:rgba(255,255,255,0.04);border:1px solid var(--rim);border-radius:var(--r-sm);padding:14px 16px 14px 42px;color:var(--text);font-family:var(--sans);font-size:15px;outline:none;transition:all 0.25s;}
+input[type=text]:focus,input[type=password]:focus{border-color:rgba(212,168,83,0.5);background:rgba(212,168,83,0.04);box-shadow:0 0 0 3px rgba(212,168,83,0.08),inset 0 1px 0 rgba(255,255,255,0.06);}
+input::placeholder{color:var(--text-3);font-weight:300;}
+.answer-input{padding:18px 18px!important;font-size:18px!important;font-family:var(--sans)!important;font-weight:500!important;border-radius:var(--r-md)!important;border-color:rgba(64,200,224,0.2)!important;background:rgba(64,200,224,0.03)!important;}
+.answer-input:focus{border-color:rgba(64,200,224,0.5)!important;background:rgba(64,200,224,0.06)!important;box-shadow:0 0 0 3px rgba(64,200,224,0.08),inset 0 1px 0 rgba(255,255,255,0.06)!important;}
 
-function requireAdmin(req, res, next) {
-  if (req.session && req.session.adminAuthed) return next();
-  res.status(401).json({ error: 'Unauthorized' });
-}
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 28px;font-family:var(--sans);font-size:14px;font-weight:600;letter-spacing:0.3px;border:none;border-radius:var(--r-sm);cursor:pointer;transition:all 0.22s var(--ease-out);text-decoration:none;width:100%;position:relative;overflow:hidden;}
+.btn:active{transform:scale(0.98);}
+.btn-primary{background:linear-gradient(135deg,#c49535 0%,#d4a853 35%,#e8c170 60%,#d4a853 100%);background-size:200% 100%;color:#0a0808;font-weight:700;letter-spacing:0.5px;box-shadow:0 4px 20px rgba(212,168,83,0.2),inset 0 1px 0 rgba(255,255,255,0.3);}
+.btn-primary:hover{background-position:100% 0;transform:translateY(-2px);box-shadow:0 8px 32px rgba(212,168,83,0.35),inset 0 1px 0 rgba(255,255,255,0.3);}
+.btn-ghost{background:var(--glass);color:var(--text-2);border:1px solid var(--rim);backdrop-filter:blur(8px);}
+.btn-ghost:hover{border-color:var(--rim-hi);color:var(--text);transform:translateY(-1px);}
+.btn-danger{background:rgba(224,85,85,0.1);color:var(--ruby);border:1px solid rgba(224,85,85,0.25);width:auto;padding:6px 14px;font-size:12px;}
+.btn-danger:hover{background:rgba(224,85,85,0.2);}
+.btn-sm{width:auto;padding:8px 16px;font-size:12px;}
 
-// ============================================================
-// ROUTES: AUTH
-// ============================================================
+/* INFO GRID */
+.info-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:28px;}
+@media(max-width:480px){.info-grid{grid-template-columns:repeat(2,1fr);}}
+.info-tile{background:var(--glass-md);border:1px solid var(--rim);border-radius:var(--r-sm);padding:18px 12px;text-align:center;transition:all 0.2s;}
+.info-tile:hover{border-color:var(--rim-hi);transform:translateY(-2px);}
+.info-tile-num{font-family:var(--serif);font-size:1.8rem;font-weight:700;line-height:1;color:var(--gold);}
+.info-tile-lbl{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--text-3);margin-top:6px;text-transform:uppercase;}
 
-// User login
-app.post('/api/auth/user', authLimiter, (req, res) => {
-  const { password } = req.body;
-  if (!password) return res.status(400).json({ error: 'Missing password' });
+/* RULES */
+.rules-list{list-style:none;margin-bottom:28px;}
+.rules-list li{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:13px;color:var(--text-2);line-height:1.5;}
+.rules-list li:last-child{border-bottom:none;}
+.rule-dot{width:20px;height:20px;background:var(--glass-md);border:1px solid var(--rim);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;margin-top:1px;}
+.rule-dot.gold{border-color:var(--gold);color:var(--gold);}
+.rule-dot.red{border-color:var(--ruby);color:var(--ruby);}
+.rule-dot.cyan{border-color:var(--cyan);color:var(--cyan);}
 
-  if (password !== USER_PASSWORD) {
-    return res.status(401).json({ error: 'Sai mật khẩu!' });
-  }
+/* QUIZ TOPBAR */
+.quiz-topbar{width:100%;display:flex;justify-content:space-between;align-items:center;padding:20px 0 16px;}
+.quiz-q-lbl{font-family:var(--mono);font-size:12px;color:var(--text-3);}
+.quiz-q-lbl strong{font-family:var(--serif);font-size:22px;font-weight:700;color:var(--text);margin-left:4px;}
 
-  const ip = getRealIP(req);
-  const fingerprint = generateFingerprint(req);
-  const fpKey = `fp_${fingerprint}`;
+/* Timer pill */
+.timer-pill{display:flex;align-items:center;gap:8px;background:var(--glass-md);border:1px solid var(--rim);border-radius:100px;padding:7px 16px;font-family:var(--mono);font-size:15px;font-weight:500;color:var(--cyan);transition:all 0.3s;}
+.timer-pill.warn{border-color:rgba(224,148,32,0.4);color:var(--amber);background:rgba(224,148,32,0.08);}
+.timer-pill.urgent{border-color:rgba(224,85,85,0.5);color:var(--ruby);background:rgba(224,85,85,0.1);animation:pulseRed 0.6s ease infinite alternate;}
+@keyframes pulseRed{from{box-shadow:0 0 0 rgba(224,85,85,0);}to{box-shadow:0 0 14px rgba(224,85,85,0.3);}}
 
-  // Check if IP already used
-  if (usedIPs.get(ip)) {
-    return res.status(403).json({
-      error: 'IP này đã được sử dụng để làm bài. Mỗi IP chỉ được làm 1 lần.',
-      code: 'IP_USED',
-    });
-  }
+/* Bars */
+.bars-wrap{width:100%;margin-bottom:8px;}
+.time-bar{width:100%;height:3px;background:rgba(255,255,255,0.06);border-radius:100px;margin-bottom:6px;overflow:hidden;}
+.time-bar-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--emerald),var(--cyan));transition:width 1s linear,background 0.5s;}
+.time-bar-fill.warn-zone{background:linear-gradient(90deg,var(--amber),#f0a020);}
+.time-bar-fill.danger-zone{background:linear-gradient(90deg,var(--ruby),#ff3030);}
+.progress-bar{width:100%;height:2px;background:rgba(255,255,255,0.04);border-radius:100px;overflow:hidden;margin-bottom:24px;}
+.progress-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--gold),var(--gold-lt));transition:width 0.5s var(--ease-spring);position:relative;}
+.progress-fill::after{content:'';position:absolute;right:-2px;top:-2px;width:6px;height:6px;border-radius:50%;background:var(--gold-lt);box-shadow:0 0 8px var(--gold);}
 
-  // Check if fingerprint already used
-  if (fingerprintCache.get(fpKey)) {
-    return res.status(403).json({
-      error: 'Thiết bị này đã được sử dụng để làm bài.',
-      code: 'DEVICE_USED',
-    });
-  }
+/* Dots */
+.dots-nav{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin-bottom:24px;}
+.dot{width:32px;height:32px;border-radius:var(--r-sm);border:1px solid var(--rim);background:var(--glass);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;color:var(--text-3);cursor:pointer;transition:all 0.18s;}
+.dot:hover{border-color:var(--rim-hi);color:var(--text);}
+.dot.answered{border-color:rgba(212,168,83,0.4);color:var(--gold);background:rgba(212,168,83,0.06);}
+.dot.current{border-color:var(--cyan);color:var(--cyan);background:rgba(64,200,224,0.1);box-shadow:0 0 12px rgba(64,200,224,0.15);}
 
-  req.session.userAuthed = true;
-  req.session.userIP = ip;
-  req.session.userFingerprint = fingerprint;
-  req.session.quizStarted = false;
+/* Question card */
+.question-card{width:100%;background:var(--glass);border:1px solid var(--rim);border-radius:var(--r-lg);padding:36px;margin-bottom:16px;position:relative;overflow:hidden;animation:questionSlide 0.4s var(--ease-out) both;}
+.question-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);opacity:0.5;}
+.q-bg-num{position:absolute;right:-10px;bottom:-20px;font-family:var(--serif);font-size:9rem;font-weight:900;color:rgba(255,255,255,0.02);line-height:1;user-select:none;pointer-events:none;}
+.q-eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:4px;color:var(--cyan);text-transform:uppercase;margin-bottom:16px;opacity:0.7;}
+.q-word{font-family:var(--serif);font-size:clamp(2.4rem,7vw,3.8rem);font-weight:900;color:var(--text);letter-spacing:-1px;line-height:1;margin-bottom:10px;}
+.q-phonetic{font-family:var(--mono);font-size:15px;color:var(--gold);margin-bottom:28px;font-weight:300;}
+.q-prompt{font-family:var(--mono);font-size:10px;letter-spacing:3px;color:var(--text-3);text-transform:uppercase;margin-bottom:10px;}
+@keyframes questionSlide{from{opacity:0;transform:translateX(16px);}to{opacity:1;transform:translateX(0);}}
 
-  res.json({ success: true, message: 'Đăng nhập thành công!' });
-});
+.nav-row{display:flex;gap:10px;width:100%;margin-top:4px;}
+.nav-row .btn{flex:1;width:auto;}
+.submit-confirm{display:none;background:rgba(224,148,32,0.08);border:1px solid rgba(224,148,32,0.25);border-radius:var(--r-sm);padding:14px 18px;margin-bottom:14px;font-size:13px;color:var(--amber);font-family:var(--mono);}
+.submit-confirm.show{display:block;}
 
-// Admin login
-app.post('/api/auth/admin', authLimiter, (req, res) => {
-  const { password } = req.body;
-  if (password !== ADMIN_PASSWORD) {
-    return res.status(401).json({ error: 'Sai mật khẩu admin!' });
-  }
-  req.session.adminAuthed = true;
-  res.json({ success: true });
-});
+/* Result */
+.result-hero{width:100%;text-align:center;padding:32px 0 24px;}
+.score-ring-wrap{position:relative;width:160px;height:160px;margin:0 auto 24px;}
+.score-ring-svg{position:absolute;inset:0;transform:rotate(-90deg);}
+.score-ring-track{fill:none;stroke:rgba(255,255,255,0.05);stroke-width:6;}
+.score-ring-fill{fill:none;stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset 1.2s var(--ease-out);}
+.score-ring-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.score-big{font-family:var(--serif);font-size:2.8rem;font-weight:900;line-height:1;}
+.score-big.s-hi{color:var(--emerald);}
+.score-big.s-mid{color:var(--amber);}
+.score-big.s-lo{color:var(--ruby);}
+.score-denom{font-family:var(--mono);font-size:11px;color:var(--text-3);margin-top:4px;}
+.result-verdict{font-family:var(--serif);font-size:1.8rem;font-weight:700;margin-bottom:8px;}
+.result-meta{font-family:var(--mono);font-size:12px;color:var(--text-3);}
 
-// Logout
-app.post('/api/auth/logout', (req, res) => {
-  req.session.destroy();
-  res.clearCookie('vqsid');
-  res.json({ success: true });
-});
+.result-tbl{width:100%;border-collapse:collapse;}
+.result-tbl th{font-family:var(--mono);font-size:9px;letter-spacing:3px;color:var(--text-3);text-transform:uppercase;text-align:left;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.06);}
+.result-tbl td{padding:12px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.03);vertical-align:middle;}
+.result-tbl tr:last-child td{border-bottom:none;}
+.col-word{font-family:var(--serif)!important;font-weight:700!important;font-size:16px!important;color:var(--gold-lt)!important;}
+.col-ans{font-family:var(--mono)!important;font-size:12px!important;color:var(--text-2)!important;}
+.badge-ok{display:inline-flex;align-items:center;gap:5px;background:rgba(45,212,160,0.1);color:var(--emerald);border:1px solid rgba(45,212,160,0.25);padding:3px 10px;border-radius:100px;font-size:11px;font-family:var(--mono);}
+.badge-fail{display:inline-flex;align-items:center;gap:5px;background:rgba(224,85,85,0.1);color:var(--ruby);border:1px solid rgba(224,85,85,0.25);padding:3px 10px;border-radius:100px;font-size:11px;font-family:var(--mono);}
 
-// Check auth status
-app.get('/api/auth/status', (req, res) => {
-  res.json({
-    userAuthed: !!req.session.userAuthed,
-    adminAuthed: !!req.session.adminAuthed,
-    quizDone: !!req.session.quizDone,
-  });
-});
+/* Admin */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;margin-bottom:28px;}
+.stat-tile{background:var(--glass-md);border:1px solid var(--rim);border-radius:var(--r-sm);padding:18px 14px;text-align:center;transition:all 0.2s;}
+.stat-tile:hover{border-color:rgba(212,168,83,0.3);transform:translateY(-2px);}
+.stat-tile-num{font-family:var(--serif);font-size:2rem;font-weight:700;color:var(--gold);line-height:1;}
+.stat-tile-lbl{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--text-3);margin-top:6px;text-transform:uppercase;}
 
-// ============================================================
-// ROUTES: QUIZ
-// ============================================================
+.result-row{background:var(--glass);border:1px solid var(--rim);border-radius:var(--r-md);padding:18px 20px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:14px;transition:border-color 0.2s;}
+.result-row:hover{border-color:var(--rim-hi);}
+.rr-name{font-weight:600;font-size:15px;margin-bottom:5px;}
+.rr-meta{font-family:var(--mono);font-size:11px;color:var(--text-3);display:flex;flex-wrap:wrap;gap:10px;}
+.rr-score-num{font-family:var(--serif);font-size:2rem;font-weight:700;}
+.rr-score-num.s-hi{color:var(--emerald);}
+.rr-score-num.s-mid{color:var(--amber);}
+.rr-score-num.s-lo{color:var(--ruby);}
+.rr-actions{display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
+.rr-btn-row{display:flex;gap:6px;}
+.admin-search-bar{display:flex;gap:10px;margin-bottom:18px;}
+.admin-search-bar input{flex:1;}
 
-// Get 10 random questions
-app.get('/api/quiz/questions', antiFraud, requireUser, (req, res) => {
-  if (req.session.quizDone) {
-    return res.status(403).json({ error: 'Bạn đã hoàn thành bài kiểm tra rồi!' });
-  }
+/* Overlays */
+.detail-overlay{display:none;position:fixed;inset:0;background:rgba(8,8,14,0.92);backdrop-filter:blur(16px);z-index:100;overflow-y:auto;padding:24px 16px;animation:fadeIn 0.2s ease;}
+.detail-overlay.open{display:block;}
+.detail-inner{max-width:680px;margin:0 auto;}
+.detail-close-row{display:flex;justify-content:flex-end;margin-bottom:16px;}
 
-  // Shuffle and pick 10
-  const shuffled = [...vocabulary].sort(() => Math.random() - 0.5);
-  const selected = shuffled.slice(0, 10);
+.timeup-overlay{display:none;position:fixed;inset:0;background:rgba(8,8,14,0.97);backdrop-filter:blur(24px);z-index:300;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;}
+.timeup-overlay.show{display:flex;animation:fadeIn 0.3s ease;}
+.timeup-icon-wrap{width:100px;height:100px;background:rgba(224,85,85,0.1);border:1px solid rgba(224,85,85,0.3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:3rem;margin-bottom:28px;animation:shakeBig 0.6s ease 0.2s both;}
+@keyframes shakeBig{0%,100%{transform:scale(1) rotate(0deg);}25%{transform:scale(1.1) rotate(-5deg);}75%{transform:scale(1.1) rotate(5deg);}}
+.timeup-title{font-family:var(--serif);font-size:3.5rem;font-weight:900;color:var(--ruby);margin-bottom:12px;animation:fadeSlideUp 0.5s var(--ease-out) 0.3s both;}
+.timeup-sub{font-family:var(--sans);font-size:15px;color:var(--text-3);margin-bottom:32px;line-height:1.7;animation:fadeSlideUp 0.5s var(--ease-out) 0.4s both;}
+.timeup-spinner{display:flex;gap:8px;animation:fadeSlideUp 0.5s var(--ease-out) 0.5s both;}
+.timeup-spinner span{width:8px;height:8px;background:var(--gold);border-radius:50%;animation:bounce 1.2s ease-in-out infinite;}
+.timeup-spinner span:nth-child(2){animation-delay:0.2s;}
+.timeup-spinner span:nth-child(3){animation-delay:0.4s;}
 
-  // Store in session so answers can be verified
-  req.session.currentQuiz = selected.map(v => v.word);
-  req.session.quizStarted = true;
-  req.session.startTime = Date.now();
+/* Toast */
+.toast-wrap{position:fixed;bottom:28px;right:28px;z-index:200;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
+.toast{display:flex;align-items:center;gap:10px;background:var(--glass-md);backdrop-filter:blur(20px);border:1px solid var(--rim-hi);border-radius:var(--r-sm);padding:12px 18px;font-family:var(--sans);font-size:13px;font-weight:500;min-width:200px;pointer-events:auto;transform:translateX(120%);opacity:0;transition:all 0.4s var(--ease-spring);}
+.toast.show{transform:translateX(0);opacity:1;}
+.toast-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:var(--emerald);}
+.toast.error .toast-dot{background:var(--ruby);}
+.toast.warn .toast-dot{background:var(--amber);}
 
-  // Return questions WITHOUT meanings
-  const questions = selected.map((v, i) => ({
-    id: i,
-    word: v.word,
-    phonetic: v.phonetic,
-  }));
+/* Errors / warnings */
+.error-msg{font-family:var(--mono);font-size:12px;color:var(--ruby);margin-top:8px;display:none;padding:8px 12px;background:rgba(224,85,85,0.07);border-radius:var(--r-sm);border:1px solid rgba(224,85,85,0.2);}
+.error-msg.show{display:block;}
+.ip-warning{display:none;background:rgba(224,85,85,0.07);border:1px solid rgba(224,85,85,0.25);border-radius:var(--r-sm);padding:16px;margin-bottom:20px;color:var(--ruby);}
+.ip-warning.show{display:block;}
+.ip-warning-title{font-weight:700;font-size:14px;margin-bottom:6px;}
+.ip-warning-msg{font-family:var(--mono);font-size:12px;color:rgba(224,85,85,0.8);}
 
-  res.json({ questions });
-});
+.footer-nav{display:flex;gap:24px;justify-content:center;margin-top:32px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.04);width:100%;}
+.footer-nav a{font-family:var(--mono);font-size:11px;color:var(--text-3);text-decoration:none;letter-spacing:2px;cursor:pointer;transition:color 0.2s;text-transform:uppercase;}
+.footer-nav a:hover{color:var(--gold);}
 
-// Submit answers
-app.post('/api/quiz/submit', antiFraud, requireUser, (req, res) => {
-  if (req.session.quizDone) {
-    return res.status(403).json({ error: 'Bạn đã nộp bài rồi!' });
-  }
-  if (!req.session.quizStarted || !req.session.currentQuiz) {
-    return res.status(400).json({ error: 'Chưa bắt đầu quiz!' });
-  }
+/* Keyframes */
+@keyframes fadeSlideUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+@keyframes bounce{0%,60%,100%{transform:scale(0.7);opacity:0.5;}30%{transform:scale(1);opacity:1;}}
+</style>
+</head>
+<body>
+<div class="ambient">
+  <div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div>
+</div>
+<div class="mesh"></div>
+<div class="grain"></div>
 
-  const { answers, name } = req.body;
-  if (!answers || !Array.isArray(answers)) {
-    return res.status(400).json({ error: 'Invalid answers format' });
-  }
+<div class="app">
 
-  const ip = getRealIP(req);
-  const fingerprint = req.session.userFingerprint;
-  const timeTaken = Math.round((Date.now() - req.session.startTime) / 1000);
+<!-- LOGIN -->
+<div class="view active" id="view-login">
+  <div class="wordmark">
+    <div class="wordmark-eyebrow">
+      <div class="eyebrow-line"></div>
+      <span class="eyebrow-text">Secure · Verified · Monitored</span>
+      <div class="eyebrow-line right"></div>
+    </div>
+    <div class="wordmark-title">Lex<span>IQ</span></div>
+    <div class="wordmark-tagline">Hệ thống kiểm tra từ vựng tiếng Anh bảo mật</div>
+  </div>
+  <div class="glass-card" style="max-width:440px;">
+    <div class="cc-tl"></div><div class="cc-br"></div>
+    <div class="sec-lbl"><span class="sec-lbl-txt">Xác thực người dùng</span><div class="sec-lbl-line"></div></div>
+    <div class="ip-warning" id="login-warn">
+      <div class="ip-warning-title">⛔ Truy cập bị từ chối</div>
+      <div class="ip-warning-msg" id="login-warn-msg"></div>
+    </div>
+    <div class="field">
+      <div class="field-lbl">Họ và tên</div>
+      <div class="input-wrap">
+        <input type="text" id="input-name" placeholder="Nhập tên của bạn…" autocomplete="off">
+        <span class="input-icon">✦</span>
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-lbl">Mã truy cập</div>
+      <div class="input-wrap">
+        <input type="password" id="input-password" placeholder="••••••••••" autocomplete="off">
+        <span class="input-icon">⬡</span>
+      </div>
+      <div class="error-msg" id="login-error"></div>
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()">Truy cập hệ thống →</button>
+  </div>
+  <div class="footer-nav"><a onclick="showAdminLogin()">Admin Panel</a></div>
+</div>
 
-  // ⏱ Enforce 2-minute (120s) time limit — server-side enforcement
-  const TIME_LIMIT = 120;
-  if (timeTaken > TIME_LIMIT + 5) { // +5s grace for network latency
-    req.session.quizDone = true; // prevent retry
-    return res.status(403).json({
-      error: 'Hết giờ! Bài kiểm tra chỉ cho phép 2 phút.',
-      code: 'TIME_UP',
-      timeTaken,
-    });
-  }
+<!-- ADMIN LOGIN -->
+<div class="view" id="view-admin-login">
+  <div class="wordmark">
+    <div class="wordmark-eyebrow">
+      <div class="eyebrow-line"></div>
+      <span class="eyebrow-text">Khu vực hạn chế</span>
+      <div class="eyebrow-line right"></div>
+    </div>
+    <div class="wordmark-title">Ad<span>min</span></div>
+    <div class="wordmark-tagline">Chỉ dành cho quản trị viên được ủy quyền</div>
+  </div>
+  <div class="glass-card" style="max-width:440px;">
+    <div class="cc-tl"></div><div class="cc-br"></div>
+    <div class="sec-lbl"><span class="sec-lbl-txt">Xác thực admin</span><div class="sec-lbl-line"></div></div>
+    <div class="field">
+      <div class="field-lbl">Mật khẩu admin</div>
+      <div class="input-wrap">
+        <input type="password" id="admin-password" placeholder="••••••••••" autocomplete="off">
+        <span class="input-icon">🔐</span>
+      </div>
+      <div class="error-msg" id="admin-login-error"></div>
+    </div>
+    <button class="btn btn-primary" onclick="doAdminLogin()">Đăng nhập admin →</button>
+  </div>
+  <div class="footer-nav"><a onclick="showView('view-login')">← Quay lại</a></div>
+</div>
 
-  // Grade answers
-  const quizWords = req.session.currentQuiz;
-  let score = 0;
-  const graded = [];
+<!-- READY -->
+<div class="view" id="view-ready">
+  <div class="wordmark">
+    <div class="wordmark-eyebrow">
+      <div class="eyebrow-line"></div>
+      <span class="eyebrow-text">✓ Đã xác thực thành công</span>
+      <div class="eyebrow-line right"></div>
+    </div>
+    <div class="wordmark-title">Sẵn <span>sàng</span></div>
+    <div class="wordmark-tagline">Đọc kỹ thể lệ trước khi bắt đầu</div>
+  </div>
+  <div class="glass-card">
+    <div class="cc-tl"></div><div class="cc-br"></div>
+    <div class="sec-lbl"><span class="sec-lbl-txt">Thể lệ thi</span><div class="sec-lbl-line"></div></div>
+    <div class="info-grid">
+      <div class="info-tile"><div class="info-tile-num">10</div><div class="info-tile-lbl">Câu hỏi</div></div>
+      <div class="info-tile"><div class="info-tile-num" style="color:var(--ruby)">2p</div><div class="info-tile-lbl">Thời gian</div></div>
+      <div class="info-tile"><div class="info-tile-num" style="color:var(--emerald)">1×</div><div class="info-tile-lbl">Lần làm</div></div>
+      <div class="info-tile"><div class="info-tile-num" style="color:var(--cyan)">IP</div><div class="info-tile-lbl">Bảo mật</div></div>
+    </div>
+    <ul class="rules-list">
+      <li><div class="rule-dot cyan">→</div><span>Nhìn từ tiếng Anh và phiên âm, <strong>tự gõ nghĩa tiếng Việt</strong> — không có gợi ý</span></li>
+      <li><div class="rule-dot gold">≈</div><span>Chấp nhận <strong>gần đúng</strong> — thiếu dấu hoặc viết tắt cũng được tính</span></li>
+      <li><div class="rule-dot gold">⏱</div><span>Giới hạn <strong>2 phút</strong> — hệ thống tự động nộp bài khi hết giờ</span></li>
+      <li><div class="rule-dot red">!</div><span>Mỗi IP chỉ được làm <strong>1 lần duy nhất</strong> — kết quả được lưu lại</span></li>
+    </ul>
+    <button class="btn btn-primary" onclick="startQuiz()">Bắt đầu làm bài →</button>
+  </div>
+</div>
 
-  for (let i = 0; i < quizWords.length; i++) {
-    const word = quizWords[i];
-    const vocab = vocabulary.find(v => v.word === word);
-    const userAnswer = (answers[i] || '').trim().toLowerCase()
-      .normalize('NFC');
+<!-- QUIZ -->
+<div class="view" id="view-quiz">
+  <div class="quiz-topbar" style="width:100%;max-width:680px;">
+    <div class="quiz-q-lbl">Câu <strong id="q-current">1</strong><span style="color:var(--text-3);font-family:var(--mono);font-size:12px;"> / 10</span></div>
+    <div class="timer-pill" id="quiz-timer">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span id="timer-display">02:00</span>
+    </div>
+  </div>
+  <div class="bars-wrap" style="width:100%;max-width:680px;">
+    <div class="time-bar"><div class="time-bar-fill" id="time-bar-fill"></div></div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:10%"></div></div>
+  </div>
+  <div class="dots-nav" id="dots-nav"></div>
+  <div id="question-area" style="width:100%;"></div>
+  <div class="submit-confirm" id="submit-confirm">
+    ⚠ Còn <strong id="unanswered-count">0</strong> câu chưa điền. Nhấn Nộp bài lần nữa để xác nhận.
+  </div>
+  <div class="nav-row" style="max-width:680px;">
+    <button class="btn btn-ghost" id="btn-prev" onclick="navQuestion(-1)">← Câu trước</button>
+    <button class="btn btn-ghost" id="btn-next" onclick="navQuestion(1)">Câu tiếp →</button>
+    <button class="btn btn-primary" id="btn-submit" onclick="confirmSubmit()" style="display:none;">Nộp bài ✓</button>
+  </div>
+</div>
 
-    let correct = false;
-    if (vocab) {
-      const acceptableAnswers = [
-        vocab.meaning.toLowerCase().normalize('NFC'),
-        ...vocab.alt.map(a => a.toLowerCase().normalize('NFC')),
-      ];
+<!-- RESULT -->
+<div class="view" id="view-result">
+  <div class="wordmark" style="padding-bottom:28px;">
+    <div class="wordmark-eyebrow">
+      <div class="eyebrow-line"></div>
+      <span class="eyebrow-text" id="result-badge-text">Kết quả</span>
+      <div class="eyebrow-line right"></div>
+    </div>
+    <div class="wordmark-title">Hoàn <span>thành!</span></div>
+  </div>
+  <div class="glass-card" style="width:100%;">
+    <div class="cc-tl"></div><div class="cc-br"></div>
+    <div class="result-hero">
+      <div class="score-ring-wrap">
+        <svg class="score-ring-svg" viewBox="0 0 160 160">
+          <circle class="score-ring-track" cx="80" cy="80" r="68"/>
+          <circle class="score-ring-fill" id="score-ring-fill" cx="80" cy="80" r="68" stroke-dasharray="427.26" stroke-dashoffset="427.26" stroke="var(--emerald)"/>
+        </svg>
+        <div class="score-ring-inner">
+          <div class="score-big" id="score-num">0</div>
+          <div class="score-denom">/ 10</div>
+        </div>
+      </div>
+      <div class="result-verdict" id="score-msg">—</div>
+      <div class="result-meta" id="score-time">—</div>
+    </div>
+    <div class="sec-lbl"><span class="sec-lbl-txt">Chi tiết từng câu</span><div class="sec-lbl-line"></div></div>
+    <div id="result-detail" style="overflow-x:auto;"></div>
+  </div>
+</div>
 
-      // Check exact match or fuzzy (contains)
-      correct = acceptableAnswers.some(acc => {
-        // exact
-        if (userAnswer === acc) return true;
-        // contains check (at least 70% of chars match)
-        if (acc.length > 3 && userAnswer.length > 2) {
-          if (acc.includes(userAnswer) || userAnswer.includes(acc)) return true;
-        }
-        return false;
-      });
+<!-- ADMIN -->
+<div class="view" id="view-admin">
+  <div class="wordmark" style="padding-bottom:28px;">
+    <div class="wordmark-eyebrow">
+      <div class="eyebrow-line"></div>
+      <span class="eyebrow-text">🔐 Admin Panel</span>
+      <div class="eyebrow-line right"></div>
+    </div>
+    <div class="wordmark-title">Dash<span>board</span></div>
+    <div class="wordmark-tagline">Giám sát · Quản lý IP · Thống kê thời gian thực</div>
+  </div>
+  <div class="glass-card" style="width:100%;">
+    <div class="cc-tl"></div><div class="cc-br"></div>
+    <div class="sec-lbl"><span class="sec-lbl-txt">Tổng quan</span><div class="sec-lbl-line"></div></div>
+    <div class="stat-grid">
+      <div class="stat-tile"><div class="stat-tile-num" id="stat-total">—</div><div class="stat-tile-lbl">Tổng bài</div></div>
+      <div class="stat-tile"><div class="stat-tile-num" id="stat-avg">—</div><div class="stat-tile-lbl">Điểm TB</div></div>
+      <div class="stat-tile"><div class="stat-tile-num" style="color:var(--emerald)" id="stat-pass">—</div><div class="stat-tile-lbl">Đạt ≥5</div></div>
+      <div class="stat-tile"><div class="stat-tile-num" style="color:var(--ruby)" id="stat-fail">—</div><div class="stat-tile-lbl">Chưa đạt</div></div>
+      <div class="stat-tile"><div class="stat-tile-num" style="color:var(--cyan)" id="stat-ips">—</div><div class="stat-tile-lbl">IP dùng</div></div>
+    </div>
+    <div class="sec-lbl"><span class="sec-lbl-txt">Bài đã nộp</span><div class="sec-lbl-line"></div></div>
+    <div class="admin-search-bar">
+      <div class="input-wrap" style="flex:1;">
+        <input type="text" id="admin-search" placeholder="Tìm theo tên, IP…" oninput="filterResults()">
+        <span class="input-icon">⌕</span>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="loadAdminData()">↻ Làm mới</button>
+    </div>
+    <div id="admin-results-list">
+      <div style="text-align:center;padding:48px;color:var(--text-3);font-family:var(--mono);font-size:13px;">Đang tải…</div>
+    </div>
+  </div>
+  <div class="footer-nav"><a onclick="doLogout()">Đăng xuất</a></div>
+</div>
 
-      if (correct) score++;
-    }
+</div><!-- .app -->
 
-    graded.push({
-      word: vocab?.word,
-      phonetic: vocab?.phonetic,
-      userAnswer: answers[i] || '',
-      correctMeaning: vocab?.meaning,
-      correct,
-    });
-  }
+<div class="detail-overlay" id="detail-overlay">
+  <div class="detail-inner">
+    <div class="detail-close-row"><button class="btn btn-ghost btn-sm" onclick="closeDetail()">✕ Đóng</button></div>
+    <div id="detail-content"></div>
+  </div>
+</div>
 
-  // Mark IP and fingerprint as used
-  usedIPs.set(ip, { usedAt: new Date().toISOString(), name });
-  fingerprintCache.set(`fp_${fingerprint}`, true);
+<div class="timeup-overlay" id="timeup-overlay">
+  <div class="timeup-icon-wrap">⏰</div>
+  <div class="timeup-title">Hết Giờ!</div>
+  <div class="timeup-sub">Bài kiểm tra đã tự động nộp.<br>Đang tính điểm cho bạn…</div>
+  <div class="timeup-spinner"><span></span><span></span><span></span></div>
+</div>
 
-  // Store result
-  const resultId = uuidv4();
-  const resultData = {
-    id: resultId,
-    name: name || 'Ẩn danh',
-    ip,
-    score,
-    total: 10,
-    percent: Math.round((score / 10) * 100),
-    timeTaken,
-    submittedAt: new Date().toISOString(),
-    graded,
-  };
-  results.set(resultId, resultData);
+<div class="toast-wrap" id="toast-wrap"></div>
 
-  // Mark session as done
-  req.session.quizDone = true;
-  req.session.quizStarted = false;
+<script>
+let questions=[],answers=[],currentQ=0,timerInterval=null,timerSeconds=0,userName='',allResults=[];
+const TIME_LIMIT=120;
 
-  res.json({
-    success: true,
-    score,
-    total: 10,
-    percent: resultData.percent,
-    timeTaken,
-    graded,
-    message: score >= 7 ? '🎉 Xuất sắc!' : score >= 5 ? '👍 Khá tốt!' : '📚 Cần ôn thêm!',
-  });
-});
+function showView(id){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));const el=document.getElementById(id);if(el)el.classList.add('active');}
+function showAdminLogin(){showView('view-admin-login');}
 
-// ============================================================
-// ROUTES: ADMIN
-// ============================================================
+function showToast(msg,type='ok'){const wrap=document.getElementById('toast-wrap');const t=document.createElement('div');t.className=`toast ${type}`;t.innerHTML=`<div class="toast-dot"></div><span>${msg}</span>`;wrap.appendChild(t);requestAnimationFrame(()=>{requestAnimationFrame(()=>t.classList.add('show'));});setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),400);},3200);}
 
-app.get('/api/admin/results', requireAdmin, (req, res) => {
-  const keys = results.keys();
-  const allResults = keys.map(k => results.get(k)).filter(Boolean);
-  // Sort by submittedAt desc
-  allResults.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
-  res.json({ results: allResults, total: allResults.length });
-});
+function showError(id,msg){const el=document.getElementById(id);el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),4000);}
 
-app.get('/api/admin/stats', requireAdmin, (req, res) => {
-  const keys = results.keys();
-  const allResults = keys.map(k => results.get(k)).filter(Boolean);
-  const avgScore = allResults.length
-    ? Math.round(allResults.reduce((s, r) => s + r.score, 0) / allResults.length * 10) / 10
-    : 0;
-  const passed = allResults.filter(r => r.score >= 5).length;
+async function api(url,method='GET',body=null){const opts={method,headers:{'Content-Type':'application/json'},credentials:'same-origin'};if(body&&method!=='GET')opts.body=JSON.stringify(body);const res=await fetch(url,opts);const data=await res.json();if(!res.ok)throw data;return data;}
 
-  res.json({
-    total: allResults.length,
-    avgScore,
-    passed,
-    failed: allResults.length - passed,
-    usedIPs: usedIPs.keys().length,
-  });
-});
+async function doLogin(){const pw=document.getElementById('input-password').value.trim();const name=document.getElementById('input-name').value.trim();if(!name){showError('login-error','Vui lòng nhập tên của bạn!');return;}if(!pw){showError('login-error','Vui lòng nhập mã truy cập!');return;}userName=name;try{const res=await api('/api/auth/user','POST',{password:pw});if(res.success){showToast('✓ Đăng nhập thành công!');showView('view-ready');}}catch(e){if(e.code==='IP_USED'||e.code==='DEVICE_USED'){const w=document.getElementById('login-warn');document.getElementById('login-warn-msg').textContent=e.error;w.classList.add('show');}else{showError('login-error',e.error||'Sai mã truy cập!');}}}
 
-app.delete('/api/admin/results/:id', requireAdmin, (req, res) => {
-  const { id } = req.params;
-  if (results.del(id)) {
-    res.json({ success: true });
-  } else {
-    res.status(404).json({ error: 'Not found' });
-  }
-});
+async function doAdminLogin(){const pw=document.getElementById('admin-password').value.trim();if(!pw)return;try{const res=await api('/api/auth/admin','POST',{password:pw});if(res.success){showView('view-admin');loadAdminData();}}catch(e){showError('admin-login-error',e.error||'Sai mật khẩu admin!');}}
 
-// Reset an IP (allow re-attempt)
-app.post('/api/admin/reset-ip', requireAdmin, (req, res) => {
-  const { ip } = req.body;
-  if (!ip) return res.status(400).json({ error: 'Missing IP' });
-  usedIPs.del(ip);
-  res.json({ success: true, message: `IP ${ip} đã được reset.` });
-});
+async function doLogout(){await api('/api/auth/logout','POST',{});showView('view-login');}
 
-// ============================================================
-// STATIC FILES
-// ============================================================
-app.use(express.static(path.join(__dirname, 'public')));
+async function startQuiz(){try{const data=await api('/api/quiz/questions','GET');questions=data.questions;answers=new Array(10).fill('');currentQ=0;showView('view-quiz');renderDots();renderQuestion();startTimer();}catch(e){showToast(e.error||'Lỗi khi tải câu hỏi!','error');}}
 
-// SPA fallback
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+function startTimer(){clearInterval(timerInterval);timerSeconds=0;timerInterval=setInterval(()=>{timerSeconds++;const remaining=TIME_LIMIT-timerSeconds;const m=String(Math.floor(Math.max(0,remaining)/60)).padStart(2,'0');const s=String(Math.max(0,remaining)%60).padStart(2,'0');const display=document.getElementById('timer-display');const timerEl=document.getElementById('quiz-timer');const bar=document.getElementById('time-bar-fill');if(remaining<=0){clearInterval(timerInterval);if(display)display.textContent='00:00';autoSubmitOnTimeout();return;}if(display)display.textContent=`${m}:${s}`;const pct=(remaining/TIME_LIMIT)*100;if(bar){bar.style.width=pct+'%';bar.className='time-bar-fill'+(pct<=25?' danger-zone':pct<=50?' warn-zone':'');}if(timerEl){timerEl.className='timer-pill'+(remaining<=10?' urgent':remaining<=30?' warn':'');}if(remaining===30)showToast('⚠ Còn 30 giây!','warn');if(remaining===10)showToast('🔴 Còn 10 giây!','error');},1000);}
 
-// ============================================================
-// START
-// ============================================================
-app.listen(PORT, () => {
-  console.log(`🚀 Vocab Quiz Server running on port ${PORT}`);
-  console.log(`👤 User Password: ${USER_PASSWORD}`);
-  console.log(`🔐 Admin Password: ${ADMIN_PASSWORD}`);
-});
+async function autoSubmitOnTimeout(){const inp=document.getElementById('answer-input');if(inp)answers[currentQ]=inp.value;document.getElementById('timeup-overlay').classList.add('show');try{const data=await api('/api/quiz/submit','POST',{answers,name:userName});setTimeout(()=>{document.getElementById('timeup-overlay').classList.remove('show');showResult(data);},2000);}catch(e){setTimeout(()=>{document.getElementById('timeup-overlay').classList.remove('show');showToast(e.error||'Lỗi khi nộp bài!','error');},1500);}}
+
+function renderDots(){const nav=document.getElementById('dots-nav');nav.innerHTML='';for(let i=0;i<10;i++){const d=document.createElement('div');d.className='dot'+(answers[i]?' answered':'')+(i===currentQ?' current':'');d.textContent=i+1;d.onclick=()=>jumpTo(i);nav.appendChild(d);}}
+
+function renderQuestion(){const q=questions[currentQ];const area=document.getElementById('question-area');area.innerHTML=`<div class="question-card"><div class="q-bg-num">${String(currentQ+1).padStart(2,'0')}</div><div class="q-eyebrow">Question ${String(currentQ+1).padStart(2,'0')} of 10</div><div class="q-word">${q.word}</div><div class="q-phonetic">${q.phonetic}</div><div class="q-prompt">Nghĩa tiếng Việt là gì?</div><input type="text" class="answer-input" id="answer-input" placeholder="Gõ nghĩa tiếng Việt…" value="${escapeHtml(answers[currentQ])}" oninput="saveAnswer(this.value)" onkeydown="handleKey(event)"></div>`;setTimeout(()=>{const inp=document.getElementById('answer-input');if(inp)inp.focus();},80);document.getElementById('q-current').textContent=currentQ+1;document.getElementById('progress-fill').style.width=`${((currentQ+1)/10)*100}%`;document.getElementById('btn-prev').style.display=currentQ===0?'none':'';document.getElementById('btn-next').style.display=currentQ===9?'none':'';document.getElementById('btn-submit').style.display=currentQ===9?'':'none';document.getElementById('submit-confirm').classList.remove('show');}
+
+function saveAnswer(val){answers[currentQ]=val;renderDots();}
+function handleKey(e){if(e.key==='Enter'){if(currentQ<9)navQuestion(1);else confirmSubmit();}}
+function navQuestion(dir){const inp=document.getElementById('answer-input');if(inp)answers[currentQ]=inp.value;currentQ=Math.max(0,Math.min(9,currentQ+dir));renderQuestion();renderDots();}
+function jumpTo(i){const inp=document.getElementById('answer-input');if(inp)answers[currentQ]=inp.value;currentQ=i;renderQuestion();renderDots();}
+
+function confirmSubmit(){const inp=document.getElementById('answer-input');if(inp)answers[currentQ]=inp.value;const unanswered=answers.filter(a=>!a.trim()).length;if(unanswered>0){document.getElementById('unanswered-count').textContent=unanswered;const conf=document.getElementById('submit-confirm');if(conf.classList.contains('show'))submitQuiz();else conf.classList.add('show');}else{submitQuiz();}}
+
+async function submitQuiz(){clearInterval(timerInterval);try{const data=await api('/api/quiz/submit','POST',{answers,name:userName});showResult(data);}catch(e){showToast(e.error||'Lỗi khi nộp bài!','error');}}
+
+function showResult(data){const pct=data.percent;const isHi=data.score>=7;const isMid=data.score>=5;document.getElementById('result-badge-text').textContent=isHi?'🎉 Xuất sắc':isMid?'👍 Khá tốt':'📚 Cần ôn thêm';const scoreNum=document.getElementById('score-num');scoreNum.textContent=data.score;scoreNum.className='score-big '+(isHi?'s-hi':isMid?'s-mid':'s-lo');document.getElementById('score-msg').textContent=data.message;document.getElementById('score-time').textContent=`⏱ Hoàn thành trong ${data.timeTaken} giây`;const ring=document.getElementById('score-ring-fill');const circ=2*Math.PI*68;ring.style.stroke=isHi?'var(--emerald)':isMid?'var(--amber)':'var(--ruby)';ring.style.strokeDashoffset=circ-(pct/100)*circ;const rows=data.graded.map(g=>`<tr><td class="col-word">${g.word}</td><td class="col-ans">${escapeHtml(g.userAnswer)||'<span style="color:var(--text-3)">—</span>'}</td><td>${g.correct?'<span class="badge-ok">✓ Đúng</span>':'<span class="badge-fail">✗ Sai</span>'}</td><td style="font-family:var(--mono);font-size:12px;color:var(--text-3);">${g.correct?'':escapeHtml(g.correctMeaning)}</td></tr>`).join('');document.getElementById('result-detail').innerHTML=`<table class="result-tbl"><thead><tr><th>Từ</th><th>Đáp án của bạn</th><th>Kết quả</th><th>Đúng là</th></tr></thead><tbody>${rows}</tbody></table>`;showView('view-result');}
+
+async function loadAdminData(){try{const[statsData,resultsData]=await Promise.all([api('/api/admin/stats','GET'),api('/api/admin/results','GET')]);document.getElementById('stat-total').textContent=statsData.total;document.getElementById('stat-avg').textContent=statsData.avgScore;document.getElementById('stat-pass').textContent=statsData.passed;document.getElementById('stat-fail').textContent=statsData.failed;document.getElementById('stat-ips').textContent=statsData.usedIPs;allResults=resultsData.results;renderResults(allResults);}catch(e){showToast('Lỗi tải dữ liệu!','error');}}
+
+function filterResults(){const q=document.getElementById('admin-search').value.toLowerCase();renderResults(allResults.filter(r=>r.name.toLowerCase().includes(q)||r.ip.includes(q)));}
+
+function renderResults(list){const el=document.getElementById('admin-results-list');if(!list.length){el.innerHTML='<div style="text-align:center;padding:48px;color:var(--text-3);font-family:var(--mono);">Chưa có bài nộp nào.</div>';return;}el.innerHTML=list.map(r=>`<div class="result-row"><div><div class="rr-name">${escapeHtml(r.name)}</div><div class="rr-meta"><span>🌐 ${r.ip}</span><span>⏱ ${r.timeTaken}s</span><span>🕐 ${new Date(r.submittedAt).toLocaleString('vi-VN')}</span></div></div><div class="rr-actions"><div class="rr-score-num ${r.score>=7?'s-hi':r.score>=5?'s-mid':'s-lo'}">${r.score}/10</div><div class="rr-btn-row"><button class="btn btn-ghost btn-sm" onclick='showDetail(${JSON.stringify(r)})'>Chi tiết</button><button class="btn btn-danger" onclick="deleteResult('${r.id}')">✕</button></div><button class="btn btn-ghost btn-sm" onclick="resetIP('${r.ip}')">Reset IP</button></div></div>`).join('');}
+
+function showDetail(r){const rows=r.graded.map(g=>`<tr><td class="col-word">${escapeHtml(g.word)}</td><td class="col-ans">${escapeHtml(g.userAnswer)||'—'}</td><td>${g.correct?'<span class="badge-ok">✓</span>':'<span class="badge-fail">✗</span>'}</td><td style="font-size:12px;color:var(--text-3);">${g.correct?'':escapeHtml(g.correctMeaning)}</td></tr>`).join('');document.getElementById('detail-content').innerHTML=`<div class="glass-card"><div class="cc-tl"></div><div class="cc-br"></div><div class="sec-lbl"><span class="sec-lbl-txt">Chi tiết: ${escapeHtml(r.name)}</span><div class="sec-lbl-line"></div></div><div style="font-family:var(--mono);font-size:12px;color:var(--text-3);margin-bottom:20px;line-height:1.8;">IP: ${r.ip} &nbsp;·&nbsp; Điểm: ${r.score}/10 &nbsp;·&nbsp; Thời gian: ${r.timeTaken}s<br>Nộp lúc: ${new Date(r.submittedAt).toLocaleString('vi-VN')}</div><div style="overflow-x:auto;"><table class="result-tbl"><thead><tr><th>Từ</th><th>Đáp án</th><th>KQ</th><th>Đúng là</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;document.getElementById('detail-overlay').classList.add('open');}
+
+function closeDetail(){document.getElementById('detail-overlay').classList.remove('open');}
+
+async function deleteResult(id){if(!confirm('Xóa bài này?'))return;try{await api(`/api/admin/results/${id}`,'DELETE');showToast('Đã xóa!');loadAdminData();}catch(e){showToast('Lỗi xóa!','error');}}
+
+async function resetIP(ip){if(!confirm(`Reset IP: ${ip}?`))return;try{await api('/api/admin/reset-ip','POST',{ip});showToast(`✓ Đã reset IP: ${ip}`);loadAdminData();}catch(e){showToast('Lỗi reset!','error');}}
+
+function escapeHtml(str){if(!str)return'';return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+(async()=>{try{const status=await api('/api/auth/status','GET');if(status.adminAuthed){showView('view-admin');loadAdminData();}else if(status.userAuthed){if(status.quizDone)showToast('Bạn đã hoàn thành bài kiểm tra rồi.','warn');else showView('view-ready');}}catch(e){}})();
+
+document.getElementById('input-password').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+document.getElementById('admin-password').addEventListener('keydown',e=>{if(e.key==='Enter')doAdminLogin();});
+</script>
+</body>
+</html>
