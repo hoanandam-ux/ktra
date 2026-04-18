@@ -441,16 +441,7 @@ input::placeholder{color:var(--text-3);font-weight:300;}
 </div>
 
 <!-- DIRTY IP OVERLAY -->
-<div class="dirty-overlay" id="dirty-overlay">
-  <div class="dirty-card">
-    <div class="dirty-icon">🚫</div>
-    <div class="dirty-title">IP Bẩn</div>
-    <div class="dirty-sub" id="dirty-reason">Địa chỉ IP của bạn bị phát hiện là VPN, proxy hoặc datacenter.</div>
-    <div class="dirty-ip" id="dirty-ip-display"></div>
-    <div class="dirty-hint">Vui lòng sử dụng mạng thật (WiFi gia đình, 4G cá nhân) để truy cập.</div>
-  </div>
-</div>
-</div><!-- .app -->
+
 
 <div class="detail-overlay" id="detail-overlay">
   <div class="detail-inner">
