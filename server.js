@@ -30,22 +30,12 @@ const vocabulary = [
   { word: 'ability',        phonetic: '/əˈbɪlɪti/',    meaning: 'khả năng',              alt: ['kha nang','năng lực','nang luc'] },
   { word: 'able',           phonetic: '/ˈeɪbl/',        meaning: 'có khả năng',           alt: ['co kha nang','có thể','co the'] },
   { word: 'about',          phonetic: '/əˈbaʊt/',       meaning: 'khoảng',                alt: ['khoang','về','ve','xung quanh'] },
-  { word: 'above',          phonetic: '/əˈbʌv/',        meaning: 'trên, phía trên',       alt: ['tren','phía trên','pha tren'] },
+  { word: 'above',          phonetic: '/əˈbʌv/',        meaning: 'trên, phía trên',       alt: ['tren','phía trên','pha tren','tren phia tren'] },
   { word: 'accept',         phonetic: '/əkˈsept/',      meaning: 'chấp nhận',             alt: ['chap nhan','đồng ý','dong y'] },
   { word: 'according (to)', phonetic: '/əˈkɔːrdɪŋ/',   meaning: 'theo',                  alt: ['dua theo','dựa theo'] },
   { word: 'account',        phonetic: '/əˈkaʊnt/',      meaning: 'tài khoản',             alt: ['tai khoan'] },
   { word: 'across',         phonetic: '/əˈkrɒs/',       meaning: 'đi qua',                alt: ['di qua','ngang qua','ngang','qua'] },
-  { word: 'act',            phonetic: '/ækt/',           meaning: 'hành động, đóng vai',   alt: ['hanh dong','hành động','dong vai','đóng vai'] },
-  { word: 'action',         phonetic: '/ˈækʃn/',        meaning: 'hành động',             alt: ['hanh dong','hành động','hoạt động','hoat dong'] },
-  { word: 'activity',       phonetic: '/ækˈtɪvɪti/',   meaning: 'hoạt động',             alt: ['hoat dong','hoạt động','sinh hoạt'] },
-  { word: 'add',            phonetic: '/æd/',            meaning: 'thêm vào',              alt: ['them vao','thêm','them','cộng','cong'] },
-  { word: 'address',        phonetic: '/əˈdres/',       meaning: 'địa chỉ',               alt: ['dia chi','địa chỉ','đia chi'] },
-  { word: 'adult',          phonetic: '/ˈædʌlt/',       meaning: 'người lớn',             alt: ['nguoi lon','người lớn','trưởng thành'] },
-  { word: 'after',          phonetic: '/ˈɑːftər/',      meaning: 'sau, sau khi',          alt: ['sau','sau khi','sau do','sau đó'] },
-  { word: 'again',          phonetic: '/əˈɡen/',        meaning: 'lại, một lần nữa',      alt: ['lai','lại','mot lan nua','một lần nữa'] },
-  { word: 'against',        phonetic: '/əˈɡenst/',      meaning: 'chống lại',             alt: ['chong lai','chống lại','đối lập','doi lap'] },
-  { word: 'age',            phonetic: '/eɪdʒ/',         meaning: 'tuổi, thời đại',        alt: ['tuoi','tuổi','thoi dai','thời đại'] },
-  { word: 'ago',            phonetic: '/əˈɡəʊ/',        meaning: 'trước đây',             alt: ['truoc day','trước đây','truoc','trước'] },
+  { word: 'act',            phonetic: '/ækt/',           meaning: 'hành động, đóng vai',   alt: ['hanh dong','hành động','dong vai','đóng vai','hanh dong dong vai'] },
 ];
 
 // ============================================================
@@ -303,12 +293,14 @@ app.get('/api/auth/ip-check', async (req, res) => {
 app.get('/api/quiz/questions', antiFraud, requireUser, (req, res) => {
   if (req.session.quizDone) return res.status(403).json({ error: 'Bạn đã hoàn thành bài kiểm tra rồi!' });
 
-  // Use all 20 words: 10 en2vi + 10 vi2en, shuffled together
-  const shuffled = [...vocabulary].sort(() => Math.random() - 0.5);
-  const mixed = shuffled.map((v, i) => ({
-    word: v.word,
-    mode: i < 10 ? 'en2vi' : 'vi2en',
-  })).sort(() => Math.random() - 0.5);
+  // 10 en2vi (Câu 1-10: điền tiếng Việt) + 10 vi2en (Câu 11-20: điền tiếng Anh)
+  // Each half shuffled independently so word order varies each attempt
+  const shuffledEn2Vi = [...vocabulary].sort(() => Math.random() - 0.5);
+  const shuffledVi2En = [...vocabulary].sort(() => Math.random() - 0.5);
+  const mixed = [
+    ...shuffledEn2Vi.map(v => ({ word: v.word, mode: 'en2vi' })),
+    ...shuffledVi2En.map(v => ({ word: v.word, mode: 'vi2en' })),
+  ];
 
   req.session.currentQuiz = mixed.map(q => q.word);
   req.session.quizModes   = mixed.map(q => q.mode); // store per-question modes
@@ -442,7 +434,7 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
   const avgScore = all.length
     ? Math.round(all.reduce((s, r) => s + r.score, 0) / all.length * 10) / 10
     : 0;
-  const passed = all.filter(r => r.score >= 5).length;
+  const passed = all.filter(r => r.score >= 10).length;
   res.json({ total: all.length, avgScore, passed, failed: all.length - passed, usedIPs: usedIPs.keys().length });
 });
 
