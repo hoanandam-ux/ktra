@@ -237,26 +237,9 @@ input::placeholder{color:var(--text-3);font-weight:300;}
 @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
 @keyframes bounce{0%,60%,100%{transform:scale(0.7);opacity:0.5;}30%{transform:scale(1);opacity:1;}}
 
-/* MODE SELECTOR */
-.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:4px;}
-.mode-tile{background:var(--glass);border:1px solid var(--rim);border-radius:var(--r-md);padding:20px 16px;cursor:pointer;transition:all 0.22s var(--ease-out);text-align:center;}
-.mode-tile:hover{border-color:var(--rim-hi);transform:translateY(-2px);}
-.mode-tile.active{border-color:var(--gold);background:rgba(212,168,83,0.07);box-shadow:0 0 0 1px var(--gold),0 4px 20px rgba(212,168,83,0.12);}
-.mode-icon{font-size:1.6rem;margin-bottom:8px;}
-.mode-title{font-family:var(--serif);font-size:1.05rem;font-weight:700;margin-bottom:6px;color:var(--text);}
-.mode-desc{font-family:var(--mono);font-size:10px;color:var(--text-3);letter-spacing:0.5px;line-height:1.5;}
-
-/* DIRTY IP OVERLAY */
-.dirty-overlay{display:none;position:fixed;inset:0;background:rgba(8,8,14,0.98);backdrop-filter:blur(24px);z-index:500;flex-direction:column;align-items:center;justify-content:center;padding:32px;animation:fadeIn 0.3s ease;}
-.dirty-overlay.show{display:flex;}
-.dirty-card{max-width:420px;text-align:center;}
-.dirty-icon{font-size:4rem;margin-bottom:20px;animation:shakeBig 0.6s ease both;}
-.dirty-title{font-family:var(--serif);font-size:3rem;font-weight:900;color:var(--ruby);margin-bottom:12px;}
-.dirty-sub{font-family:var(--sans);font-size:15px;color:var(--text-2);margin-bottom:12px;line-height:1.7;}
-.dirty-ip{font-family:var(--mono);font-size:13px;color:var(--ruby);background:rgba(224,85,85,0.08);border:1px solid rgba(224,85,85,0.25);border-radius:var(--r-sm);padding:8px 16px;margin-bottom:20px;display:inline-block;}
-.dirty-hint{font-family:var(--mono);font-size:11px;color:var(--text-3);letter-spacing:0.5px;line-height:1.7;}
-
-/* VI2EN question style */
+/* VI2EN + EN2VI question display */
+.q-meaning-display{font-family:var(--serif);font-size:clamp(1.8rem,5vw,2.8rem);font-weight:700;color:var(--gold-lt);line-height:1.2;margin-bottom:10px;}
+.q-mode-badge{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:3px;color:var(--cyan);background:rgba(64,200,224,0.1);border:1px solid rgba(64,200,224,0.2);border-radius:100px;padding:3px 10px;margin-bottom:14px;text-transform:uppercase;}
 .q-meaning-prompt{font-family:var(--serif);font-size:clamp(1.8rem,5vw,2.8rem);font-weight:700;color:var(--gold-lt);line-height:1.2;margin-bottom:10px;}
 .q-mode-badge{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:3px;color:var(--cyan);background:rgba(64,200,224,0.1);border:1px solid rgba(64,200,224,0.2);border-radius:100px;padding:3px 10px;margin-bottom:14px;text-transform:uppercase;}
 </style>
@@ -361,21 +344,7 @@ input::placeholder{color:var(--text-3);font-weight:300;}
       <li><div class="rule-dot gold">⏱</div><span>Giới hạn <strong>2 phút</strong> — hệ thống tự động nộp bài khi hết giờ</span></li>
       <li><div class="rule-dot red">!</div><span>Mỗi IP chỉ được làm <strong>1 lần duy nhất</strong> — kết quả được lưu lại</span></li>
     </ul>
-    <!-- MODE SELECTOR -->
-    <div class="sec-lbl" style="margin-top:8px;"><span class="sec-lbl-txt">Chọn chế độ luyện tập</span><div class="sec-lbl-line"></div></div>
-    <div class="mode-grid" id="mode-grid">
-      <div class="mode-tile active" id="mode-en2vi" onclick="selectMode('en2vi')">
-        <div class="mode-icon">🇬🇧 → 🇻🇳</div>
-        <div class="mode-title">Anh → Việt</div>
-        <div class="mode-desc">Nhìn từ tiếng Anh, gõ nghĩa tiếng Việt</div>
-      </div>
-      <div class="mode-tile" id="mode-vi2en" onclick="selectMode('vi2en')">
-        <div class="mode-icon">🇻🇳 → 🇬🇧</div>
-        <div class="mode-title">Việt → Anh</div>
-        <div class="mode-desc">Nhìn nghĩa tiếng Việt, gõ từ tiếng Anh</div>
-      </div>
-    </div>
-    <button class="btn btn-primary" style="margin-top:16px;" onclick="startQuiz()">Bắt đầu làm bài →</button>
+    <button class="btn btn-primary" onclick="startQuiz()">Bắt đầu làm bài →</button>
   </div>
 </div>
 
@@ -501,15 +470,7 @@ input::placeholder{color:var(--text-3);font-weight:300;}
 
 <script>
 let questions=[],answers=[],currentQ=0,timerInterval=null,timerSeconds=0,userName='',allResults=[];
-let quizMode = 'en2vi'; // 'en2vi' or 'vi2en'
 const TIME_LIMIT=120;
-
-// ── MODE SELECTOR ──────────────────────────────────────
-function selectMode(mode) {
-  quizMode = mode;
-  document.querySelectorAll('.mode-tile').forEach(t => t.classList.remove('active'));
-  document.getElementById('mode-' + mode).classList.add('active');
-}
 
 function showView(id){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));const el=document.getElementById(id);if(el)el.classList.add('active');}
 function showAdminLogin(){showView('view-admin-login');}
@@ -526,7 +487,7 @@ async function doAdminLogin(){const pw=document.getElementById('admin-password')
 
 async function doLogout(){await api('/api/auth/logout','POST',{});showView('view-login');}
 
-async function startQuiz(){try{const data=await api('/api/quiz/questions?mode='+quizMode,'GET');questions=data.questions;answers=new Array(10).fill('');currentQ=0;showView('view-quiz');renderDots();renderQuestion();startTimer();}catch(e){showToast(e.error||'Lỗi khi tải câu hỏi!','error');}}
+async function startQuiz(){try{const data=await api('/api/quiz/questions','GET');questions=data.questions;answers=new Array(10).fill('');currentQ=0;showView('view-quiz');renderDots();renderQuestion();startTimer();}catch(e){showToast(e.error||'Lỗi khi tải câu hỏi!','error');}}
 
 function startTimer(){clearInterval(timerInterval);timerSeconds=0;timerInterval=setInterval(()=>{timerSeconds++;const remaining=TIME_LIMIT-timerSeconds;const m=String(Math.floor(Math.max(0,remaining)/60)).padStart(2,'0');const s=String(Math.max(0,remaining)%60).padStart(2,'0');const display=document.getElementById('timer-display');const timerEl=document.getElementById('quiz-timer');const bar=document.getElementById('time-bar-fill');if(remaining<=0){clearInterval(timerInterval);if(display)display.textContent='00:00';autoSubmitOnTimeout();return;}if(display)display.textContent=`${m}:${s}`;const pct=(remaining/TIME_LIMIT)*100;if(bar){bar.style.width=pct+'%';bar.className='time-bar-fill'+(pct<=25?' danger-zone':pct<=50?' warn-zone':'');}if(timerEl){timerEl.className='timer-pill'+(remaining<=10?' urgent':remaining<=30?' warn':'');}if(remaining===30)showToast('⚠ Còn 30 giây!','warn');if(remaining===10)showToast('🔴 Còn 10 giây!','error');},1000);}
 
@@ -534,7 +495,24 @@ async function autoSubmitOnTimeout(){const inp=document.getElementById('answer-i
 
 function renderDots(){const nav=document.getElementById('dots-nav');nav.innerHTML='';for(let i=0;i<10;i++){const d=document.createElement('div');d.className='dot'+(answers[i]?' answered':'')+(i===currentQ?' current':'');d.textContent=i+1;d.onclick=()=>jumpTo(i);nav.appendChild(d);}}
 
-function renderQuestion(){const q=questions[currentQ];const area=document.getElementById('question-area');area.innerHTML=`<div class="question-card"><div class="q-bg-num">${String(currentQ+1).padStart(2,'0')}</div><div class="q-eyebrow">Question ${String(currentQ+1).padStart(2,'0')} of 10</div><div class="q-word">${q.word}</div><div class="q-phonetic">${q.phonetic}</div><div class="q-prompt">Nghĩa tiếng Việt là gì?</div><input type="text" class="answer-input" id="answer-input" placeholder="Gõ nghĩa tiếng Việt…" value="${escapeHtml(answers[currentQ])}" oninput="saveAnswer(this.value)" onkeydown="handleKey(event)"></div>`;setTimeout(()=>{const inp=document.getElementById('answer-input');if(inp)inp.focus();},80);document.getElementById('q-current').textContent=currentQ+1;document.getElementById('progress-fill').style.width=`${((currentQ+1)/10)*100}%`;document.getElementById('btn-prev').style.display=currentQ===0?'none':'';document.getElementById('btn-next').style.display=currentQ===9?'none':'';document.getElementById('btn-submit').style.display=currentQ===9?'':'none';document.getElementById('submit-confirm').classList.remove('show');}
+function renderQuestion(){
+const q=questions[currentQ];
+const area=document.getElementById('question-area');
+const isVI2EN=(q.mode==='vi2en');
+const modeBadge=isVI2EN?'🇻🇳 → 🇬🇧':'🇬🇧 → 🇻🇳';
+const questionBody=isVI2EN
+  ?`<div class="q-mode-badge">${modeBadge}</div><div class="q-meaning-display">${escapeHtml(q.prompt)}</div><div class="q-prompt">Từ tiếng Anh tương ứng là gì?</div>`
+  :`<div class="q-mode-badge">${modeBadge}</div><div class="q-word">${escapeHtml(q.prompt)}</div><div class="q-phonetic">${escapeHtml(q.hint||'')}</div><div class="q-prompt">Nghĩa tiếng Việt là gì?</div>`;
+const ph=isVI2EN?'Gõ từ tiếng Anh…':'Gõ nghĩa tiếng Việt…';
+area.innerHTML=`<div class="question-card"><div class="q-bg-num">${String(currentQ+1).padStart(2,'0')}</div><div class="q-eyebrow">Câu ${currentQ+1} / 10</div>${questionBody}<input type="text" class="answer-input" id="answer-input" placeholder="${ph}" value="${escapeHtml(answers[currentQ])}" oninput="saveAnswer(this.value)" onkeydown="handleKey(event)"></div>`;
+setTimeout(()=>{const inp=document.getElementById('answer-input');if(inp)inp.focus();},80);
+document.getElementById('q-current').textContent=currentQ+1;
+document.getElementById('progress-fill').style.width=`${((currentQ+1)/10)*100}%`;
+document.getElementById('btn-prev').style.display=currentQ===0?'none':'';
+document.getElementById('btn-next').style.display=currentQ===9?'none':'';
+document.getElementById('btn-submit').style.display=currentQ===9?'':'none';
+document.getElementById('submit-confirm').classList.remove('show');
+}
 
 function saveAnswer(val){answers[currentQ]=val;renderDots();}
 function handleKey(e){if(e.key==='Enter'){if(currentQ<9)navQuestion(1);else confirmSubmit();}}
@@ -545,16 +523,17 @@ function confirmSubmit(){const inp=document.getElementById('answer-input');if(in
 
 async function submitQuiz(){clearInterval(timerInterval);try{const data=await api('/api/quiz/submit','POST',{answers,name:userName});showResult(data);}catch(e){showToast(e.error||'Lỗi khi nộp bài!','error');}}
 
-function showResult(data){const pct=data.percent;const isHi=data.score>=7;const isMid=data.score>=5;document.getElementById('result-badge-text').textContent=isHi?'🎉 Xuất sắc':isMid?'👍 Khá tốt':'📚 Cần ôn thêm';const scoreNum=document.getElementById('score-num');scoreNum.textContent=data.score;scoreNum.className='score-big '+(isHi?'s-hi':isMid?'s-mid':'s-lo');document.getElementById('score-msg').textContent=data.message;document.getElementById('score-time').textContent=`⏱ Hoàn thành trong ${data.timeTaken} giây`;const ring=document.getElementById('score-ring-fill');const circ=2*Math.PI*68;ring.style.stroke=isHi?'var(--emerald)':isMid?'var(--amber)':'var(--ruby)';ring.style.strokeDashoffset=circ-(pct/100)*circ;const isVI2EN = data.mode === 'vi2en';
-  const rows=data.graded.map(g=>`<tr>
-    <td class="col-word">${isVI2EN ? escapeHtml(g.meaning||g.prompt) : g.word}</td>
+function showResult(data){const pct=data.percent;const isHi=data.score>=7;const isMid=data.score>=5;document.getElementById('result-badge-text').textContent=isHi?'🎉 Xuất sắc':isMid?'👍 Khá tốt':'📚 Cần ôn thêm';const scoreNum=document.getElementById('score-num');scoreNum.textContent=data.score;scoreNum.className='score-big '+(isHi?'s-hi':isMid?'s-mid':'s-lo');document.getElementById('score-msg').textContent=data.message;document.getElementById('score-time').textContent=`⏱ Hoàn thành trong ${data.timeTaken} giây`;const ring=document.getElementById('score-ring-fill');const circ=2*Math.PI*68;ring.style.stroke=isHi?'var(--emerald)':isMid?'var(--amber)':'var(--ruby)';ring.style.strokeDashoffset=circ-(pct/100)*circ;const rows=data.graded.map(g=>{
+  const isVI2EN=(g.mode==='vi2en');
+  const col1=isVI2EN?escapeHtml(g.meaning||g.prompt||''):escapeHtml(g.word||g.prompt||'');
+  const correct=escapeHtml(g.correctAnswer||g.correctMeaning||g.meaning||'');
+  return `<tr>
+    <td><div class="col-word">${col1}</div>${isVI2EN?'':'<div style="font-family:var(--mono);font-size:11px;color:var(--text-3);">'+escapeHtml(g.phonetic||'')+'</div>'}</td>
     <td class="col-ans">${escapeHtml(g.userAnswer)||'<span style="color:var(--text-3)">—</span>'}</td>
     <td>${g.correct?'<span class="badge-ok">✓ Đúng</span>':'<span class="badge-fail">✗ Sai</span>'}</td>
-    <td style="font-family:var(--mono);font-size:12px;color:var(--text-3);">${g.correct?'':escapeHtml(g.correctAnswer||g.correctMeaning||'')}</td>
-  </tr>`).join('');
-  const col1Header = isVI2EN ? 'Nghĩa Việt' : 'Từ Anh';
-  const col4Header = isVI2EN ? 'Từ đúng' : 'Nghĩa đúng';
-  document.getElementById('result-detail').innerHTML=`<table class="result-tbl"><thead><tr><th>${col1Header}</th><th>Đáp án của bạn</th><th>Kết quả</th><th>${col4Header}</th></tr></thead><tbody>${rows}</tbody></table>`;showView('view-result');}
+    <td style="font-family:var(--mono);font-size:12px;color:var(--text-3);">${g.correct?'<span style="color:var(--text-3)">—</span>':correct}</td>
+  </tr>`;}).join('');
+  document.getElementById('result-detail').innerHTML=`<table class="result-tbl"><thead><tr><th>Từ / Nghĩa</th><th>Đáp án của bạn</th><th>Kết quả</th><th>Đáp án đúng</th></tr></thead><tbody>${rows}</tbody></table>`;showView('view-result');}
 
 async function loadAdminData(){try{const[statsData,resultsData]=await Promise.all([api('/api/admin/stats','GET'),api('/api/admin/results','GET')]);document.getElementById('stat-total').textContent=statsData.total;document.getElementById('stat-avg').textContent=statsData.avgScore;document.getElementById('stat-pass').textContent=statsData.passed;document.getElementById('stat-fail').textContent=statsData.failed;document.getElementById('stat-ips').textContent=statsData.usedIPs;allResults=resultsData.results;renderResults(allResults);}catch(e){showToast('Lỗi tải dữ liệu!','error');}}
 
@@ -562,7 +541,7 @@ function filterResults(){const q=document.getElementById('admin-search').value.t
 
 function renderResults(list){const el=document.getElementById('admin-results-list');if(!list.length){el.innerHTML='<div style="text-align:center;padding:48px;color:var(--text-3);font-family:var(--mono);">Chưa có bài nộp nào.</div>';return;}el.innerHTML=list.map(r=>`<div class="result-row"><div><div class="rr-name">${escapeHtml(r.name)}</div><div class="rr-meta"><span>🌐 ${r.ip}</span><span>⏱ ${r.timeTaken}s</span><span>🕐 ${new Date(r.submittedAt).toLocaleString('vi-VN')}</span></div></div><div class="rr-actions"><div class="rr-score-num ${r.score>=7?'s-hi':r.score>=5?'s-mid':'s-lo'}">${r.score}/10</div><div class="rr-btn-row"><button class="btn btn-ghost btn-sm" onclick='showDetail(${JSON.stringify(r)})'>Chi tiết</button><button class="btn btn-danger" onclick="deleteResult('${r.id}')">✕</button></div><button class="btn btn-ghost btn-sm" onclick="resetIP('${r.ip}')">Reset IP</button></div></div>`).join('');}
 
-function showDetail(r){const rows=r.graded.map(g=>`<tr><td class="col-word">${escapeHtml(g.word)}</td><td class="col-ans">${escapeHtml(g.userAnswer)||'—'}</td><td>${g.correct?'<span class="badge-ok">✓</span>':'<span class="badge-fail">✗</span>'}</td><td style="font-size:12px;color:var(--text-3);">${g.correct?'':escapeHtml(g.correctMeaning)}</td></tr>`).join('');document.getElementById('detail-content').innerHTML=`<div class="glass-card"><div class="cc-tl"></div><div class="cc-br"></div><div class="sec-lbl"><span class="sec-lbl-txt">Chi tiết: ${escapeHtml(r.name)}</span><div class="sec-lbl-line"></div></div><div style="font-family:var(--mono);font-size:12px;color:var(--text-3);margin-bottom:20px;line-height:1.8;">IP: ${r.ip} &nbsp;·&nbsp; Điểm: ${r.score}/10 &nbsp;·&nbsp; Thời gian: ${r.timeTaken}s<br>Nộp lúc: ${new Date(r.submittedAt).toLocaleString('vi-VN')}</div><div style="overflow-x:auto;"><table class="result-tbl"><thead><tr><th>Từ</th><th>Đáp án</th><th>KQ</th><th>Đúng là</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;document.getElementById('detail-overlay').classList.add('open');}
+function showDetail(r){const rows=r.graded.map(g=>`<tr><td class="col-word">${escapeHtml(g.word)}</td><td class="col-ans">${escapeHtml(g.userAnswer)||'—'}</td><td>${g.correct?'<span class="badge-ok">✓</span>':'<span class="badge-fail">✗</span>'}</td><td style="font-size:12px;color:var(--text-3);">${g.correct?'':escapeHtml(g.correctAnswer||g.correctMeaning||'')}</td></tr>`).join('');document.getElementById('detail-content').innerHTML=`<div class="glass-card"><div class="cc-tl"></div><div class="cc-br"></div><div class="sec-lbl"><span class="sec-lbl-txt">Chi tiết: ${escapeHtml(r.name)}</span><div class="sec-lbl-line"></div></div><div style="font-family:var(--mono);font-size:12px;color:var(--text-3);margin-bottom:20px;line-height:1.8;">IP: ${r.ip} &nbsp;·&nbsp; Điểm: ${r.score}/10 &nbsp;·&nbsp; Thời gian: ${r.timeTaken}s<br>Nộp lúc: ${new Date(r.submittedAt).toLocaleString('vi-VN')}</div><div style="overflow-x:auto;"><table class="result-tbl"><thead><tr><th>Từ</th><th>Đáp án</th><th>KQ</th><th>Đúng là</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;document.getElementById('detail-overlay').classList.add('open');}
 
 function closeDetail(){document.getElementById('detail-overlay').classList.remove('open');}
 
