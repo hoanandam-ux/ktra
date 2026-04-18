@@ -271,6 +271,7 @@ input::placeholder { color: var(--muted); }
   gap: 6px;
 }
 .quiz-timer.urgent { color: var(--error); animation: blink 0.5s ease infinite alternate; }
+.quiz-timer.warning { color: var(--warn); }
 @keyframes blink { from { opacity: 1; } to { opacity: 0.4; } }
 
 .progress-bar {
@@ -676,13 +677,13 @@ input::placeholder { color: var(--muted); }
     <div class="logo-area">
       <div class="logo-badge">✓ ĐÃ XÁC THỰC</div>
       <div class="logo-title">Sẵn sàng!</div>
-      <div class="logo-sub">// 10 câu hỏi • Điền nghĩa • Không giới hạn thời gian</div>
+      <div class="logo-sub">// 10 câu hỏi • Điền nghĩa • Giới hạn 2 phút</div>
     </div>
     <div class="card">
       <div class="section-title">Thông tin bài kiểm tra</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;">
         <div class="stat-card"><div class="stat-num">10</div><div class="stat-lbl">Câu hỏi</div></div>
-        <div class="stat-card"><div class="stat-num">∞</div><div class="stat-lbl">Thời gian</div></div>
+        <div class="stat-card"><div class="stat-num" style="color:var(--warn)">2p</div><div class="stat-lbl">Thời gian</div></div>
         <div class="stat-card"><div class="stat-num">1×</div><div class="stat-lbl">Lần làm</div></div>
         <div class="stat-card"><div class="stat-num">IP</div><div class="stat-lbl">Bảo mật</div></div>
       </div>
@@ -690,7 +691,7 @@ input::placeholder { color: var(--muted); }
         ▸ Mỗi câu: nhìn từ tiếng Anh → gõ nghĩa tiếng Việt<br>
         ▸ Chấp nhận gần đúng (thiếu dấu OK)<br>
         ▸ Bài làm sẽ được lưu lại để admin kiểm tra<br>
-        ▸ Mỗi IP chỉ được làm <strong style="color:var(--error);">1 LẦN DUY NHẤT</strong>
+        ▸ Mỗi IP chỉ được làm <strong style="color:var(--error);">1 LẦN DUY NHẤT</strong><br>▸ Thời gian làm bài: <strong style="color:var(--warn);">2 PHÚT</strong> — tự động nộp khi hết giờ
       </p>
       <button class="btn btn-primary" onclick="startQuiz()">▸ BẮT ĐẦU LÀM BÀI</button>
       <div class="card-corner"></div>
@@ -705,6 +706,10 @@ input::placeholder { color: var(--muted); }
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         <span id="timer-display">00:00</span>
       </div>
+    </div>
+    <!-- TIME BAR (counts down 2 min) -->
+    <div class="time-bar" style="width:100%;max-width:700px;">
+      <div class="time-bar-fill" id="time-bar-fill" style="width:100%;"></div>
     </div>
     <div class="progress-bar" style="width:100%;max-width:700px;">
       <div class="progress-fill" id="progress-fill" style="width:10%;"></div>
@@ -780,6 +785,13 @@ input::placeholder { color: var(--muted); }
     </div>
   </div>
 
+<!-- TIME UP OVERLAY -->
+<div class="timeup-overlay" id="timeup-overlay">
+  <div class="timeup-icon">⏰</div>
+  <div class="timeup-title">HẾT GIỜ!</div>
+  <div class="timeup-sub">Bài kiểm tra đã tự động nộp sau 2 phút.<br>Đang xử lý kết quả...</div>
+  <div class="loading-dots" style="color:var(--accent);"><span></span><span></span><span></span></div>
+</div>
 </div><!-- .app -->
 
 <!-- Detail Overlay -->
@@ -897,14 +909,73 @@ async function startQuiz() {
   }
 }
 
+const TIME_LIMIT = 120; // 2 minutes
+
 function startTimer() {
   clearInterval(timerInterval);
+  timerSeconds = 0;
   timerInterval = setInterval(() => {
     timerSeconds++;
-    const m = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
-    const s = String(timerSeconds % 60).padStart(2, '0');
-    document.getElementById('timer-display').textContent = `${m}:${s}`;
+    const remaining = TIME_LIMIT - timerSeconds;
+    const m = String(Math.floor(remaining / 60)).padStart(2, '0');
+    const s = String(Math.abs(remaining % 60)).padStart(2, '0');
+    const display = document.getElementById('timer-display');
+    const timerEl = document.getElementById('quiz-timer');
+    const bar = document.getElementById('time-bar-fill');
+
+    if (remaining <= 0) {
+      // TIME UP — auto submit
+      clearInterval(timerInterval);
+      if (display) display.textContent = '00:00';
+      autoSubmitOnTimeout();
+      return;
+    }
+
+    if (display) display.textContent = `${m}:${s}`;
+
+    // Update time bar
+    const pct = (remaining / TIME_LIMIT) * 100;
+    if (bar) {
+      bar.style.width = pct + '%';
+      bar.className = 'time-bar-fill' +
+        (pct <= 25 ? ' danger-zone' : pct <= 50 ? ' warn-zone' : '');
+    }
+
+    // Timer color
+    if (timerEl) {
+      timerEl.className = 'quiz-timer' +
+        (remaining <= 10 ? ' urgent' : remaining <= 30 ? ' warning' : '');
+    }
+
+    // Warning toasts
+    if (remaining === 30) showToast('⚠ Còn 30 giây!', 'warn');
+    if (remaining === 10) showToast('🔴 Còn 10 giây!', 'error');
   }, 1000);
+}
+
+async function autoSubmitOnTimeout() {
+  // Save current input
+  const inp = document.getElementById('answer-input');
+  if (inp) answers[currentQ] = inp.value;
+
+  // Show overlay
+  document.getElementById('timeup-overlay').classList.add('show');
+
+  try {
+    const data = await api('/api/quiz/submit', 'POST', {
+      answers: answers,
+      name: userName,
+    });
+    setTimeout(() => {
+      document.getElementById('timeup-overlay').classList.remove('show');
+      showResult(data);
+    }, 2000);
+  } catch (e) {
+    setTimeout(() => {
+      document.getElementById('timeup-overlay').classList.remove('show');
+      showToast(e.error || 'Lỗi khi nộp bài!', 'error');
+    }, 1500);
+  }
 }
 
 function renderDots() {
