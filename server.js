@@ -266,6 +266,17 @@ app.post('/api/quiz/submit', antiFraud, requireUser, (req, res) => {
   const fingerprint = req.session.userFingerprint;
   const timeTaken = Math.round((Date.now() - req.session.startTime) / 1000);
 
+  // ⏱ Enforce 2-minute (120s) time limit — server-side enforcement
+  const TIME_LIMIT = 120;
+  if (timeTaken > TIME_LIMIT + 5) { // +5s grace for network latency
+    req.session.quizDone = true; // prevent retry
+    return res.status(403).json({
+      error: 'Hết giờ! Bài kiểm tra chỉ cho phép 2 phút.',
+      code: 'TIME_UP',
+      timeTaken,
+    });
+  }
+
   // Grade answers
   const quizWords = req.session.currentQuiz;
   let score = 0;
