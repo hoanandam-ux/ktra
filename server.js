@@ -26,16 +26,16 @@ const dirtyIPCache    = new NodeCache({ stdTTL: 3600 }); // cache kết quả ch
 // VOCABULARY DATA
 // ============================================================
 const vocabulary = [
-  { word: 'a',              phonetic: '/ə/',            meaning: 'một',                   alt: ['1','mot','một'] },
-  { word: 'ability',        phonetic: '/əˈbɪlɪti/',    meaning: 'khả năng',              alt: ['kha nang','năng lực','nang luc'] },
-  { word: 'able',           phonetic: '/ˈeɪbl/',        meaning: 'có khả năng',           alt: ['co kha nang','có thể','co the'] },
-  { word: 'about',          phonetic: '/əˈbaʊt/',       meaning: 'khoảng',                alt: ['khoang','về','ve','xung quanh'] },
-  { word: 'above',          phonetic: '/əˈbʌv/',        meaning: 'trên, phía trên',       alt: ['tren','phía trên','pha tren','tren phia tren'] },
-  { word: 'accept',         phonetic: '/əkˈsept/',      meaning: 'chấp nhận',             alt: ['chap nhan','đồng ý','dong y'] },
-  { word: 'according (to)', phonetic: '/əˈkɔːrdɪŋ/',   meaning: 'theo',                  alt: ['dua theo','dựa theo'] },
-  { word: 'account',        phonetic: '/əˈkaʊnt/',      meaning: 'tài khoản',             alt: ['tai khoan'] },
-  { word: 'across',         phonetic: '/əˈkrɒs/',       meaning: 'đi qua',                alt: ['di qua','ngang qua','ngang','qua'] },
-  { word: 'act',            phonetic: '/ækt/',           meaning: 'hành động, đóng vai',   alt: ['hanh dong','hành động','dong vai','đóng vai','hanh dong dong vai'] },
+  { word: 'action',         phonetic: "/ˈækʃən/",        meaning: 'hành động, hành vi',      alt: ['hanh dong','hanh vi','hành động','hành vi','hanh dong hanh vi'] },
+  { word: 'activity',       phonetic: "/ækˈtɪvəti/",     meaning: 'hoạt động',               alt: ['hoat dong','hoạt động'] },
+  { word: 'actually',       phonetic: "/ˈæktʃuəli/",     meaning: 'thực sự, trong thực tế',  alt: ['thuc su','thực sự','trong thuc te','trong thực tế','thuc su trong thuc te'] },
+  { word: 'add',            phonetic: "/æd/",             meaning: 'cộng thêm, thêm vào',     alt: ['cong them','cộng thêm','them vao','thêm vào','them','thêm','cong'] },
+  { word: 'address',        phonetic: "/əˈdres/",         meaning: 'địa chỉ',                 alt: ['dia chi','địa chỉ','noi chuyen','giai quyet'] },
+  { word: 'administration', phonetic: "/ədˌmɪnɪˈstreɪʃən/", meaning: 'quản lý, sự điều hành', alt: ['quan ly','quản lý','su dieu hanh','sự điều hành','dieu hanh'] },
+  { word: 'admit',          phonetic: "/ədˈmɪt/",         meaning: 'thừa nhận, cho vào, công nhận', alt: ['thua nhan','thừa nhận','cho vao','cong nhan','công nhận'] },
+  { word: 'adult',          phonetic: "/ˈædʌlt/",         meaning: 'người trưởng thành',       alt: ['nguoi lon','người lớn','truong thanh','trưởng thành','nguoi truong thanh'] },
+  { word: 'affect',         phonetic: "/əˈfekt/",         meaning: 'ảnh hưởng, tác động',      alt: ['anh huong','ảnh hưởng','tac dong','tác động','anh huong tac dong'] },
+  { word: 'after',          phonetic: "/ˈæftər/",         meaning: 'sau, sau khi',             alt: ['sau','sau khi'] },
 ];
 
 // ============================================================
@@ -293,17 +293,18 @@ app.get('/api/auth/ip-check', async (req, res) => {
 app.get('/api/quiz/questions', antiFraud, requireUser, (req, res) => {
   if (req.session.quizDone) return res.status(403).json({ error: 'Bạn đã hoàn thành bài kiểm tra rồi!' });
 
-  // 10 en2vi (Câu 1-10: điền tiếng Việt) + 10 vi2en (Câu 11-20: điền tiếng Anh)
-  // Each half shuffled independently so word order varies each attempt
-  const shuffledEn2Vi = [...vocabulary].sort(() => Math.random() - 0.5);
-  const shuffledVi2En = [...vocabulary].sort(() => Math.random() - 0.5);
+  // 30 câu: 10 en2vi + 10 vi2en + 10 listen (mỗi phần shuffle riêng)
+  const s1 = [...vocabulary].sort(() => Math.random() - 0.5);
+  const s2 = [...vocabulary].sort(() => Math.random() - 0.5);
+  const s3 = [...vocabulary].sort(() => Math.random() - 0.5);
   const mixed = [
-    ...shuffledEn2Vi.map(v => ({ word: v.word, mode: 'en2vi' })),
-    ...shuffledVi2En.map(v => ({ word: v.word, mode: 'vi2en' })),
+    ...s1.map(v => ({ word: v.word, mode: 'en2vi' })),
+    ...s2.map(v => ({ word: v.word, mode: 'vi2en' })),
+    ...s3.map(v => ({ word: v.word, mode: 'listen' })),
   ];
 
   req.session.currentQuiz = mixed.map(q => q.word);
-  req.session.quizModes   = mixed.map(q => q.mode); // store per-question modes
+  req.session.quizModes   = mixed.map(q => q.mode);
   req.session.quizStarted = true;
   req.session.startTime   = Date.now();
 
@@ -312,8 +313,10 @@ app.get('/api/quiz/questions', antiFraud, requireUser, (req, res) => {
     return {
       id:     i,
       mode:   item.mode,
-      prompt: item.mode === 'en2vi' ? v.word    : v.meaning,
+      prompt: item.mode === 'en2vi' ? v.word : item.mode === 'vi2en' ? v.meaning : null,
       hint:   item.mode === 'en2vi' ? v.phonetic : null,
+      // For listen mode: expose word so client TTS can read it (student sees no text)
+      audioWord: item.mode === 'listen' ? v.word : undefined,
     };
   });
 
@@ -336,10 +339,10 @@ app.post('/api/quiz/submit', antiFraud, requireUser, (req, res) => {
   const quizModes = req.session.quizModes || []; // per-question modes
 
   // Time limit enforcement
-  const TIME_LIMIT = 120;
+  const TIME_LIMIT = 180;
   if (timeTaken > TIME_LIMIT + 5) {
     req.session.quizDone = true;
-    return res.status(403).json({ error: 'Hết giờ! Bài kiểm tra chỉ cho phép 2 phút.', code: 'TIME_UP', timeTaken });
+    return res.status(403).json({ error: 'Hết giờ! Bài kiểm tra chỉ cho phép 3 phút.', code: 'TIME_UP', timeTaken });
   }
 
   // Grade
@@ -364,13 +367,35 @@ app.post('/api/quiz/submit', antiFraud, requireUser, (req, res) => {
         correct = acceptable.some(acc =>
           raw === acc || (acc.length > 3 && raw.length > 2 && (acc.includes(raw) || raw.includes(acc)))
         );
-      } else {
+      } else if (mode === 'vi2en') {
         // vi2en: user typed the English word
         const acceptable = [vocab.word.toLowerCase()];
-        // also accept without parentheses part e.g. "according" for "according (to)"
         const simplified = vocab.word.replace(/\s*\(.*\)/, '').trim().toLowerCase();
         if (simplified !== vocab.word.toLowerCase()) acceptable.push(simplified);
         correct = acceptable.some(acc => raw === acc);
+      } else if (mode === 'listen') {
+        // listen: user types "english|meaning" separated by | or newline or comma
+        // Split by common separators
+        const parts = raw.split(/[|\n,，;；]+/).map(s => s.trim()).filter(Boolean);
+        const userWord    = parts[0] || '';
+        const userMeaning = parts.slice(1).join(' ').trim() || '';
+
+        // Check English word
+        const wordAcceptable = [vocab.word.toLowerCase()];
+        const wordSimplified = vocab.word.replace(/\s*\(.*\)/, '').trim().toLowerCase();
+        if (wordSimplified !== vocab.word.toLowerCase()) wordAcceptable.push(wordSimplified);
+        const wordOk = wordAcceptable.some(acc => userWord === acc);
+
+        // Check Vietnamese meaning
+        const meaningAcceptable = [
+          vocab.meaning.toLowerCase().normalize('NFC'),
+          ...vocab.alt.map(a => a.toLowerCase().normalize('NFC')),
+        ];
+        const meaningOk = meaningAcceptable.some(acc =>
+          userMeaning === acc || (acc.length > 3 && userMeaning.length > 2 && (acc.includes(userMeaning) || userMeaning.includes(acc)))
+        );
+
+        correct = wordOk && meaningOk;
       }
     }
 
@@ -380,8 +405,8 @@ app.post('/api/quiz/submit', antiFraud, requireUser, (req, res) => {
       word:          vocab?.word,
       phonetic:      vocab?.phonetic,
       meaning:       vocab?.meaning,
-      prompt:        qMode === 'en2vi' ? vocab?.word    : vocab?.meaning,
-      correctAnswer: qMode === 'en2vi' ? vocab?.meaning : vocab?.word,
+      prompt:        qMode === 'en2vi' ? vocab?.word : qMode === 'vi2en' ? vocab?.meaning : null,
+      correctAnswer: qMode === 'en2vi' ? vocab?.meaning : qMode === 'vi2en' ? vocab?.word : `${vocab?.word} | ${vocab?.meaning}`,
       userAnswer:    answers[i] || '',
       correct,
       mode:          qMode,
@@ -399,8 +424,8 @@ app.post('/api/quiz/submit', antiFraud, requireUser, (req, res) => {
     name:        name || 'Ẩn danh',
     ip,
     score,
-    total:       20,
-    percent:     Math.round((score / 20) * 100),
+    total:       30,
+    percent:     Math.round((score / 30) * 100),
     timeTaken,
     submittedAt: new Date().toISOString(),
     graded,
@@ -412,11 +437,11 @@ app.post('/api/quiz/submit', antiFraud, requireUser, (req, res) => {
   res.json({
     success: true,
     score,
-    total:    20,
-    percent:  Math.round((score / 20) * 100),
+    total:    30,
+    percent:  Math.round((score / 30) * 100),
     timeTaken,
     graded,
-    message: score >= 14 ? '🎉 Xuất sắc!' : score >= 10 ? '👍 Khá tốt!' : '📚 Cần ôn thêm!',
+    message: score >= 21 ? '🎉 Xuất sắc!' : score >= 15 ? '👍 Khá tốt!' : '📚 Cần ôn thêm!',
   });
 });
 
@@ -434,7 +459,7 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
   const avgScore = all.length
     ? Math.round(all.reduce((s, r) => s + r.score, 0) / all.length * 10) / 10
     : 0;
-  const passed = all.filter(r => r.score >= 10).length;
+  const passed = all.filter(r => r.score >= 15).length;
   res.json({ total: all.length, avgScore, passed, failed: all.length - passed, usedIPs: usedIPs.keys().length });
 });
 
