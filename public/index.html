@@ -145,6 +145,15 @@ input::placeholder{color:var(--text-3);font-weight:300;}
 .q-phonetic{font-family:var(--mono);font-size:15px;color:var(--gold);margin-bottom:28px;font-weight:300;}
 .q-prompt{font-family:var(--mono);font-size:10px;letter-spacing:3px;color:var(--text-3);text-transform:uppercase;margin-bottom:10px;}
 @keyframes questionSlide{from{opacity:0;transform:translateX(16px);}to{opacity:1;transform:translateX(0);}}
+/* Listen mode */
+.listen-btn-wrap{display:flex;justify-content:center;margin:24px 0 8px;}
+.listen-btn{display:inline-flex;align-items:center;gap:10px;padding:16px 32px;background:linear-gradient(135deg,rgba(64,200,224,0.12),rgba(64,200,224,0.06));border:1px solid rgba(64,200,224,0.35);border-radius:var(--r-md);color:var(--cyan);font-family:var(--sans);font-size:16px;font-weight:600;cursor:pointer;transition:all 0.22s;letter-spacing:0.3px;}
+.listen-btn:hover{background:linear-gradient(135deg,rgba(64,200,224,0.22),rgba(64,200,224,0.12));transform:translateY(-2px);box-shadow:0 8px 24px rgba(64,200,224,0.2);}
+.listen-btn:active{transform:scale(0.97);}
+.dot-listen{border-color:rgba(64,200,224,0.3)!important;color:var(--cyan)!important;}
+.dot-listen.answered{border-color:rgba(64,200,224,0.6)!important;background:rgba(64,200,224,0.08)!important;}
+.q-meaning-display{font-family:var(--serif);font-size:clamp(1.6rem,5vw,2.8rem);font-weight:700;color:var(--text);line-height:1.2;margin-bottom:28px;}
+
 
 .nav-row{display:flex;gap:10px;width:100%;margin-top:4px;}
 .nav-row .btn{flex:1;width:auto;}
@@ -333,15 +342,15 @@ input::placeholder{color:var(--text-3);font-weight:300;}
     <div class="cc-tl"></div><div class="cc-br"></div>
     <div class="sec-lbl"><span class="sec-lbl-txt">Thể lệ thi</span><div class="sec-lbl-line"></div></div>
     <div class="info-grid">
-      <div class="info-tile"><div class="info-tile-num">20</div><div class="info-tile-lbl">Câu hỏi</div></div>
-      <div class="info-tile"><div class="info-tile-num" style="color:var(--ruby)">2p</div><div class="info-tile-lbl">Thời gian</div></div>
+      <div class="info-tile"><div class="info-tile-num">30</div><div class="info-tile-lbl">Câu hỏi</div></div>
+      <div class="info-tile"><div class="info-tile-num" style="color:var(--ruby)">3p</div><div class="info-tile-lbl">Thời gian</div></div>
       <div class="info-tile"><div class="info-tile-num" style="color:var(--emerald)">1×</div><div class="info-tile-lbl">Lần làm</div></div>
       <div class="info-tile"><div class="info-tile-num" style="color:var(--cyan)">IP</div><div class="info-tile-lbl">Bảo mật</div></div>
     </div>
     <ul class="rules-list">
-      <li><div class="rule-dot cyan">→</div><span>Bài gồm <strong>10 câu Anh→Việt</strong> và <strong>10 câu Việt→Anh</strong>, trộn ngẫu nhiên</span></li>
+      <li><div class="rule-dot cyan">→</div><span>Bài gồm <strong>10 câu Anh→Việt</strong>, <strong>10 câu Việt→Anh</strong> và <strong>10 câu nghe audio</strong></span></li>
       <li><div class="rule-dot gold">≈</div><span>Chấp nhận <strong>gần đúng</strong> — thiếu dấu hoặc viết tắt cũng được tính</span></li>
-      <li><div class="rule-dot gold">⏱</div><span>Giới hạn <strong>2 phút</strong> — hệ thống tự động nộp bài khi hết giờ</span></li>
+      <li><div class="rule-dot gold">⏱</div><span>Giới hạn <strong>3 phút</strong> — hệ thống tự động nộp bài khi hết giờ</span></li>
       <li><div class="rule-dot red">!</div><span>Mỗi IP chỉ được làm <strong>1 lần duy nhất</strong> — kết quả được lưu lại</span></li>
     </ul>
     <button class="btn btn-primary" onclick="startQuiz()">Bắt đầu làm bài →</button>
@@ -351,10 +360,10 @@ input::placeholder{color:var(--text-3);font-weight:300;}
 <!-- QUIZ -->
 <div class="view" id="view-quiz">
   <div class="quiz-topbar" style="width:100%;max-width:680px;">
-    <div class="quiz-q-lbl">Câu <strong id="q-current">1</strong><span style="color:var(--text-3);font-family:var(--mono);font-size:12px;"> / 20</span></div>
+    <div class="quiz-q-lbl">Câu <strong id="q-current">1</strong><span style="color:var(--text-3);font-family:var(--mono);font-size:12px;"> / 30</span></div>
     <div class="timer-pill" id="quiz-timer">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      <span id="timer-display">02:00</span>
+      <span id="timer-display">03:00</span>
     </div>
   </div>
   <div class="bars-wrap" style="width:100%;max-width:680px;">
@@ -393,7 +402,7 @@ input::placeholder{color:var(--text-3);font-weight:300;}
         </svg>
         <div class="score-ring-inner">
           <div class="score-big" id="score-num">0</div>
-          <div class="score-denom">/ 20</div>
+          <div class="score-denom">/ 30</div>
         </div>
       </div>
       <div class="result-verdict" id="score-msg">—</div>
@@ -441,7 +450,16 @@ input::placeholder{color:var(--text-3);font-weight:300;}
 </div>
 
 <!-- DIRTY IP OVERLAY -->
-
+<div class="dirty-overlay" id="dirty-overlay">
+  <div class="dirty-card">
+    <div class="dirty-icon">🚫</div>
+    <div class="dirty-title">IP Bẩn</div>
+    <div class="dirty-sub" id="dirty-reason">Địa chỉ IP của bạn bị phát hiện là VPN, proxy hoặc datacenter.</div>
+    <div class="dirty-ip" id="dirty-ip-display"></div>
+    <div class="dirty-hint">Vui lòng sử dụng mạng thật (WiFi gia đình, 4G cá nhân) để truy cập.</div>
+  </div>
+</div>
+</div><!-- .app -->
 
 <div class="detail-overlay" id="detail-overlay">
   <div class="detail-inner">
@@ -478,48 +496,92 @@ async function doAdminLogin(){const pw=document.getElementById('admin-password')
 
 async function doLogout(){await api('/api/auth/logout','POST',{});showView('view-login');}
 
-async function startQuiz(){try{const data=await api('/api/quiz/questions','GET');questions=data.questions;answers=new Array(20).fill('');currentQ=0;showView('view-quiz');renderDots();renderQuestion();startTimer();}catch(e){showToast(e.error||'Lỗi khi tải câu hỏi!','error');}}
+async function startQuiz(){try{const data=await api('/api/quiz/questions','GET');questions=data.questions;answers=new Array(30).fill('');currentQ=0;showView('view-quiz');renderDots();renderQuestion();startTimer();}catch(e){showToast(e.error||'Lỗi khi tải câu hỏi!','error');}}
 
-function startTimer(){clearInterval(timerInterval);timerSeconds=0;timerInterval=setInterval(()=>{timerSeconds++;const remaining=TIME_LIMIT-timerSeconds;const m=String(Math.floor(Math.max(0,remaining)/60)).padStart(2,'0');const s=String(Math.max(0,remaining)%60).padStart(2,'0');const display=document.getElementById('timer-display');const timerEl=document.getElementById('quiz-timer');const bar=document.getElementById('time-bar-fill');if(remaining<=0){clearInterval(timerInterval);if(display)display.textContent='00:00';autoSubmitOnTimeout();return;}if(display)display.textContent=`${m}:${s}`;const pct=(remaining/TIME_LIMIT)*100;if(bar){bar.style.width=pct+'%';bar.className='time-bar-fill'+(pct<=25?' danger-zone':pct<=50?' warn-zone':'');}if(timerEl){timerEl.className='timer-pill'+(remaining<=10?' urgent':remaining<=30?' warn':'');}if(remaining===30)showToast('⚠ Còn 30 giây!','warn');if(remaining===10)showToast('🔴 Còn 10 giây!','error');},1000);}
+function startTimer(){clearInterval(timerInterval);timerSeconds=0;const TIME_LIMIT=180;timerInterval=setInterval(()=>{timerSeconds++;const remaining=TIME_LIMIT-timerSeconds;const m=String(Math.floor(Math.max(0,remaining)/60)).padStart(2,'0');const s=String(Math.max(0,remaining)%60).padStart(2,'0');const display=document.getElementById('timer-display');const timerEl=document.getElementById('quiz-timer');const bar=document.getElementById('time-bar-fill');if(remaining<=0){clearInterval(timerInterval);if(display)display.textContent='00:00';autoSubmitOnTimeout();return;}if(display)display.textContent=`${m}:${s}`;const pct=(remaining/TIME_LIMIT)*100;if(bar){bar.style.width=pct+'%';bar.className='time-bar-fill'+(pct<=25?' danger-zone':pct<=50?' warn-zone':'');}if(timerEl){timerEl.className='timer-pill'+(remaining<=10?' urgent':remaining<=30?' warn':'');}if(remaining===30)showToast('⚠ Còn 30 giây!','warn');if(remaining===10)showToast('🔴 Còn 10 giây!','error');},1000);}
 
 async function autoSubmitOnTimeout(){const inp=document.getElementById('answer-input');if(inp)answers[currentQ]=inp.value;document.getElementById('timeup-overlay').classList.add('show');try{const data=await api('/api/quiz/submit','POST',{answers,name:userName});setTimeout(()=>{document.getElementById('timeup-overlay').classList.remove('show');showResult(data);},2000);}catch(e){setTimeout(()=>{document.getElementById('timeup-overlay').classList.remove('show');showToast(e.error||'Lỗi khi nộp bài!','error');},1500);}}
 
-function renderDots(){const nav=document.getElementById('dots-nav');nav.innerHTML='';for(let i=0;i<20;i++){if(i===10){const sep=document.createElement('div');sep.style.cssText='width:100%;height:1px;background:rgba(255,255,255,0.08);margin:4px 0;flex-basis:100%;';nav.appendChild(sep);}const d=document.createElement('div');d.className='dot'+(answers[i]?' answered':'')+(i===currentQ?' current':'');d.textContent=i+1;d.onclick=()=>jumpTo(i);nav.appendChild(d);}}
+function renderDots(){const nav=document.getElementById('dots-nav');nav.innerHTML='';for(let i=0;i<30;i++){if(i===10||i===20){const sep=document.createElement('div');sep.style.cssText='width:100%;height:1px;background:rgba(255,255,255,0.08);margin:4px 0;flex-basis:100%;';nav.appendChild(sep);}const d=document.createElement('div');d.className='dot'+(answers[i]?' answered':'')+(i===currentQ?' current':'')+(i>=20?' dot-listen':'');d.textContent=i+1;d.onclick=()=>jumpTo(i);nav.appendChild(d);}}
+
+function speakWord(word){
+  if(!window.speechSynthesis)return;
+  window.speechSynthesis.cancel();
+  const utt=new SpeechSynthesisUtterance(word);
+  utt.lang='en-US';
+  utt.rate=0.5;
+  utt.pitch=1;
+  // prefer a US voice
+  const voices=window.speechSynthesis.getVoices();
+  const usVoice=voices.find(v=>v.lang==='en-US'&&v.name.toLowerCase().includes('google'))||voices.find(v=>v.lang==='en-US')||voices.find(v=>v.lang.startsWith('en'));
+  if(usVoice)utt.voice=usVoice;
+  window.speechSynthesis.speak(utt);
+}
 
 function renderQuestion(){
 const q=questions[currentQ];
 const area=document.getElementById('question-area');
 const isVI2EN=(q.mode==='vi2en');
-const modeBadge=isVI2EN?'🇻🇳 → 🇬🇧':'🇬🇧 → 🇻🇳';
-const questionBody=isVI2EN
-  ?`<div class="q-mode-badge">${modeBadge}</div><div class="q-meaning-display">${escapeHtml(q.prompt)}</div><div class="q-prompt">Từ tiếng Anh tương ứng là gì?</div>`
-  :`<div class="q-mode-badge">${modeBadge}</div><div class="q-word">${escapeHtml(q.prompt)}</div><div class="q-phonetic">${escapeHtml(q.hint||'')}</div><div class="q-prompt">Nghĩa tiếng Việt là gì?</div>`;
-const ph=isVI2EN?'Gõ từ tiếng Anh…':'Gõ nghĩa tiếng Việt…';
-const sectionLabel=currentQ<10?'Phần 1 — Điền nghĩa tiếng Việt':'Phần 2 — Điền từ tiếng Anh';area.innerHTML=`<div class="question-card"><div class="q-bg-num">${String(currentQ+1).padStart(2,'0')}</div><div class="q-eyebrow">${sectionLabel} &nbsp;·&nbsp; Câu ${currentQ+1} / 20</div>${questionBody}<input type="text" class="answer-input" id="answer-input" placeholder="${ph}" value="${escapeHtml(answers[currentQ])}" oninput="saveAnswer(this.value)" onkeydown="handleKey(event)"></div>`;
+const isLISTEN=(q.mode==='listen');
+let sectionLabel,modeBadge,questionBody,ph;
+if(isLISTEN){
+  sectionLabel='Phần 3 — Nghe và điền';
+  modeBadge='🎧 Nghe Audio';
+  questionBody=`<div class="q-mode-badge">${modeBadge}</div>
+    <div class="listen-btn-wrap">
+      <button class="listen-btn" onclick="speakWord(questions[currentQ].audioWord||'')" title="Phát âm thanh">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+        Phát âm
+      </button>
+    </div>
+    <div class="q-prompt" style="margin-top:20px;">Gõ từ tiếng Anh <strong style="color:var(--gold)">|</strong> nghĩa tiếng Việt</div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text-3);margin-bottom:10px;">Ví dụ: <em style="color:var(--text-2)">hello | xin chào</em></div>`;
+  ph='từ tiếng Anh | nghĩa tiếng Việt…';
+} else if(isVI2EN){
+  sectionLabel='Phần 2 — Điền từ tiếng Anh';
+  modeBadge='🇻🇳 → 🇬🇧';
+  questionBody=`<div class="q-mode-badge">${modeBadge}</div><div class="q-meaning-display">${escapeHtml(q.prompt)}</div><div class="q-prompt">Từ tiếng Anh tương ứng là gì?</div>`;
+  ph='Gõ từ tiếng Anh…';
+} else {
+  sectionLabel='Phần 1 — Điền nghĩa tiếng Việt';
+  modeBadge='🇬🇧 → 🇻🇳';
+  questionBody=`<div class="q-mode-badge">${modeBadge}</div><div class="q-word">${escapeHtml(q.prompt)}</div><div class="q-phonetic">${escapeHtml(q.hint||'')}</div><div class="q-prompt">Nghĩa tiếng Việt là gì?</div>`;
+  ph='Gõ nghĩa tiếng Việt…';
+}
+area.innerHTML=`<div class="question-card"><div class="q-bg-num">${String(currentQ+1).padStart(2,'0')}</div><div class="q-eyebrow">${sectionLabel} &nbsp;·&nbsp; Câu ${currentQ+1} / 30</div>${questionBody}<input type="text" class="answer-input" id="answer-input" placeholder="${ph}" value="${escapeHtml(answers[currentQ])}" oninput="saveAnswer(this.value)" onkeydown="handleKey(event)"></div>`;
+
+// auto-play audio on listen questions
+if(isLISTEN&&q.audioWord){speakWord(q.audioWord);}
 setTimeout(()=>{const inp=document.getElementById('answer-input');if(inp)inp.focus();},80);
 document.getElementById('q-current').textContent=currentQ+1;
-document.getElementById('progress-fill').style.width=`${((currentQ+1)/20)*100}%`;
+document.getElementById('progress-fill').style.width=`${((currentQ+1)/30)*100}%`;
 document.getElementById('btn-prev').style.display=currentQ===0?'none':'';
-document.getElementById('btn-next').style.display=currentQ===19?'none':'';
-document.getElementById('btn-submit').style.display=currentQ===19?'':'none';
+document.getElementById('btn-next').style.display=currentQ===29?'none':'';
+document.getElementById('btn-submit').style.display=currentQ===29?'':'none';
 document.getElementById('submit-confirm').classList.remove('show');
+// Re-render listen button if present
+if(isLISTEN){
+  const lb=document.querySelector('.listen-btn');
+  if(lb){lb.onclick=()=>speakWord(q.audioWord||'');}
+}
 }
 
 function saveAnswer(val){answers[currentQ]=val;renderDots();}
-function handleKey(e){if(e.key==='Enter'){if(currentQ<19)navQuestion(1);else confirmSubmit();}}
-function navQuestion(dir){const inp=document.getElementById('answer-input');if(inp)answers[currentQ]=inp.value;currentQ=Math.max(0,Math.min(19,currentQ+dir));renderQuestion();renderDots();}
+function handleKey(e){if(e.key==='Enter'){if(currentQ<29)navQuestion(1);else confirmSubmit();}}
+function navQuestion(dir){const inp=document.getElementById('answer-input');if(inp)answers[currentQ]=inp.value;currentQ=Math.max(0,Math.min(29,currentQ+dir));renderQuestion();renderDots();}
 function jumpTo(i){const inp=document.getElementById('answer-input');if(inp)answers[currentQ]=inp.value;currentQ=i;renderQuestion();renderDots();}
 
 function confirmSubmit(){const inp=document.getElementById('answer-input');if(inp)answers[currentQ]=inp.value;const unanswered=answers.filter(a=>!a.trim()).length;if(unanswered>0){document.getElementById('unanswered-count').textContent=unanswered;const conf=document.getElementById('submit-confirm');if(conf.classList.contains('show'))submitQuiz();else conf.classList.add('show');}else{submitQuiz();}}
 
 async function submitQuiz(){clearInterval(timerInterval);try{const data=await api('/api/quiz/submit','POST',{answers,name:userName});showResult(data);}catch(e){showToast(e.error||'Lỗi khi nộp bài!','error');}}
 
-function showResult(data){const pct=data.percent;const isHi=data.score>=14;const isMid=data.score>=10;document.getElementById('result-badge-text').textContent=isHi?'🎉 Xuất sắc':isMid?'👍 Khá tốt':'📚 Cần ôn thêm';const scoreNum=document.getElementById('score-num');scoreNum.textContent=data.score;scoreNum.className='score-big '+(isHi?'s-hi':isMid?'s-mid':'s-lo');document.getElementById('score-msg').textContent=data.message;document.getElementById('score-time').textContent=`⏱ Hoàn thành trong ${data.timeTaken} giây`;const ring=document.getElementById('score-ring-fill');const circ=2*Math.PI*68;ring.style.stroke=isHi?'var(--emerald)':isMid?'var(--amber)':'var(--ruby)';ring.style.strokeDashoffset=circ-(pct/100)*circ;const rows=data.graded.map(g=>{
+function showResult(data){const pct=data.percent;const isHi=data.score>=21;const isMid=data.score>=15;document.getElementById('result-badge-text').textContent=isHi?'🎉 Xuất sắc':isMid?'👍 Khá tốt':'📚 Cần ôn thêm';const scoreNum=document.getElementById('score-num');scoreNum.textContent=data.score;scoreNum.className='score-big '+(isHi?'s-hi':isMid?'s-mid':'s-lo');document.getElementById('score-msg').textContent=data.message;document.getElementById('score-time').textContent=`⏱ Hoàn thành trong ${data.timeTaken} giây`;const ring=document.getElementById('score-ring-fill');const circ=2*Math.PI*68;ring.style.stroke=isHi?'var(--emerald)':isMid?'var(--amber)':'var(--ruby)';ring.style.strokeDashoffset=circ-(pct/100)*circ;const rows=data.graded.map(g=>{
+  const isListen=(g.mode==='listen');
   const isVI2EN=(g.mode==='vi2en');
-  const col1=isVI2EN?escapeHtml(g.meaning||g.prompt||''):escapeHtml(g.word||g.prompt||'');
-  const correct=escapeHtml(g.correctAnswer||g.correctMeaning||g.meaning||'');
+  const col1=isListen?'🎧 '+escapeHtml(g.word||''):isVI2EN?escapeHtml(g.meaning||g.prompt||''):escapeHtml(g.word||g.prompt||'');
+  const correct=isListen?escapeHtml(g.word||'')+' | '+escapeHtml(g.meaning||''):escapeHtml(g.correctAnswer||g.correctMeaning||g.meaning||'');
   return `<tr>
-    <td><div class="col-word">${col1}</div>${isVI2EN?'':'<div style="font-family:var(--mono);font-size:11px;color:var(--text-3);">'+escapeHtml(g.phonetic||'')+'</div>'}</td>
+    <td><div class="col-word">${col1}</div>${(!isVI2EN&&!isListen)?'<div style="font-family:var(--mono);font-size:11px;color:var(--text-3);">'+escapeHtml(g.phonetic||'')+'</div>':''}</td>
     <td class="col-ans">${escapeHtml(g.userAnswer)||'<span style="color:var(--text-3)">—</span>'}</td>
     <td>${g.correct?'<span class="badge-ok">✓ Đúng</span>':'<span class="badge-fail">✗ Sai</span>'}</td>
     <td style="font-family:var(--mono);font-size:12px;color:var(--text-3);">${g.correct?'<span style="color:var(--text-3)">—</span>':correct}</td>
@@ -530,17 +592,19 @@ async function loadAdminData(){try{const[statsData,resultsData]=await Promise.al
 
 function filterResults(){const q=document.getElementById('admin-search').value.toLowerCase();renderResults(allResults.filter(r=>r.name.toLowerCase().includes(q)||r.ip.includes(q)));}
 
-function renderResults(list){const el=document.getElementById('admin-results-list');if(!list.length){el.innerHTML='<div style="text-align:center;padding:48px;color:var(--text-3);font-family:var(--mono);">Chưa có bài nộp nào.</div>';return;}el.innerHTML=list.map(r=>`<div class="result-row"><div><div class="rr-name">${escapeHtml(r.name)}</div><div class="rr-meta"><span>🌐 ${r.ip}</span><span>⏱ ${r.timeTaken}s</span><span>🕐 ${new Date(r.submittedAt).toLocaleString('vi-VN')}</span></div></div><div class="rr-actions"><div class="rr-score-num ${r.score>=14?'s-hi':r.score>=10?'s-mid':'s-lo'}">${r.score}/20</div><div class="rr-btn-row"><button class="btn btn-ghost btn-sm" onclick='showDetail(${JSON.stringify(r)})'>Chi tiết</button><button class="btn btn-danger" onclick="deleteResult('${r.id}')">✕</button></div><button class="btn btn-ghost btn-sm" onclick="resetIP('${r.ip}')">Reset IP</button></div></div>`).join('');}
+function renderResults(list){const el=document.getElementById('admin-results-list');if(!list.length){el.innerHTML='<div style="text-align:center;padding:48px;color:var(--text-3);font-family:var(--mono);">Chưa có bài nộp nào.</div>';return;}el.innerHTML=list.map(r=>`<div class="result-row"><div><div class="rr-name">${escapeHtml(r.name)}</div><div class="rr-meta"><span>🌐 ${r.ip}</span><span>⏱ ${r.timeTaken}s</span><span>🕐 ${new Date(r.submittedAt).toLocaleString('vi-VN')}</span></div></div><div class="rr-actions"><div class="rr-score-num ${r.score>=21?'s-hi':r.score>=15?'s-mid':'s-lo'}">${r.score}/30</div><div class="rr-btn-row"><button class="btn btn-ghost btn-sm" onclick='showDetail(${JSON.stringify(r)})'>Chi tiết</button></div><button class="btn btn-ghost btn-sm" onclick="resetIP('${r.ip}')">Reset IP</button></div></div>`).join('');}
 
-function showDetail(r){const rows=r.graded.map(g=>`<tr><td class="col-word">${escapeHtml(g.word)}</td><td class="col-ans">${escapeHtml(g.userAnswer)||'—'}</td><td>${g.correct?'<span class="badge-ok">✓</span>':'<span class="badge-fail">✗</span>'}</td><td style="font-size:12px;color:var(--text-3);">${g.correct?'':escapeHtml(g.correctAnswer||g.correctMeaning||'')}</td></tr>`).join('');document.getElementById('detail-content').innerHTML=`<div class="glass-card"><div class="cc-tl"></div><div class="cc-br"></div><div class="sec-lbl"><span class="sec-lbl-txt">Chi tiết: ${escapeHtml(r.name)}</span><div class="sec-lbl-line"></div></div><div style="font-family:var(--mono);font-size:12px;color:var(--text-3);margin-bottom:20px;line-height:1.8;">IP: ${r.ip} &nbsp;·&nbsp; Điểm: ${r.score}/20 &nbsp;·&nbsp; Thời gian: ${r.timeTaken}s<br>Nộp lúc: ${new Date(r.submittedAt).toLocaleString('vi-VN')}</div><div style="overflow-x:auto;"><table class="result-tbl"><thead><tr><th>Từ</th><th>Đáp án</th><th>KQ</th><th>Đúng là</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;document.getElementById('detail-overlay').classList.add('open');}
+function showDetail(r){const rows=r.graded.map(g=>`<tr><td class="col-word">${escapeHtml(g.word)}</td><td class="col-ans">${escapeHtml(g.userAnswer)||'—'}</td><td>${g.correct?'<span class="badge-ok">✓</span>':'<span class="badge-fail">✗</span>'}</td><td style="font-size:12px;color:var(--text-3);">${g.correct?'':escapeHtml(g.correctAnswer||g.correctMeaning||'')}</td></tr>`).join('');document.getElementById('detail-content').innerHTML=`<div class="glass-card"><div class="cc-tl"></div><div class="cc-br"></div><div class="sec-lbl"><span class="sec-lbl-txt">Chi tiết: ${escapeHtml(r.name)}</span><div class="sec-lbl-line"></div></div><div style="font-family:var(--mono);font-size:12px;color:var(--text-3);margin-bottom:20px;line-height:1.8;">IP: ${r.ip} &nbsp;·&nbsp; Điểm: ${r.score}/30 &nbsp;·&nbsp; Thời gian: ${r.timeTaken}s<br>Nộp lúc: ${new Date(r.submittedAt).toLocaleString('vi-VN')}</div><div style="overflow-x:auto;"><table class="result-tbl"><thead><tr><th>Từ</th><th>Đáp án</th><th>KQ</th><th>Đúng là</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;document.getElementById('detail-overlay').classList.add('open');}
 
 function closeDetail(){document.getElementById('detail-overlay').classList.remove('open');}
 
-async function deleteResult(id){if(!confirm('Xóa bài này?'))return;try{await api(`/api/admin/results/${id}`,'DELETE');showToast('Đã xóa!');loadAdminData();}catch(e){showToast('Lỗi xóa!','error');}}
 
 async function resetIP(ip){if(!confirm(`Reset IP: ${ip}?`))return;try{await api('/api/admin/reset-ip','POST',{ip});showToast(`✓ Đã reset IP: ${ip}`);loadAdminData();}catch(e){showToast('Lỗi reset!','error');}}
 
 function escapeHtml(str){if(!str)return'';return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// Preload TTS voices
+if(window.speechSynthesis){window.speechSynthesis.getVoices();window.speechSynthesis.onvoiceschanged=()=>window.speechSynthesis.getVoices();}
 
 (async()=>{
   // Check dirty IP first
